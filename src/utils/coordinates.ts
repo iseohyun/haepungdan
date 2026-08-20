@@ -75,25 +75,69 @@ export function createLocationFromPercent(x_pct: number, y_pct: number): Locatio
 }
 
 /**
- * 카카오맵 길찾기 / 장소 링크 생성
+ * 카카오맵 길찾기 URL 생성
  */
-export function getKakaoMapUrl(lat: number, lng: number, name?: string): string {
-  const encodedName = encodeURIComponent(name || '목적지');
-  return `https://map.kakao.com/link/to/${encodedName},${lat},${lng}`;
+export function getKakaoMapUrl(lat: number, lng: number, placeName: string): string {
+  const encName = encodeURIComponent(placeName);
+  return `https://map.kakao.com/link/to/${encName},${lat},${lng}`;
 }
 
 /**
- * 네이버지도 길찾기 링크 생성
+ * 네이버 지도 길찾기 URL 생성
  */
-export function getNaverMapUrl(lat: number, lng: number, name?: string): string {
-  const encodedName = encodeURIComponent(name || '목적지');
-  return `https://map.naver.com/v5/search/${encodedName}?c=${lng},${lat},15,0,0,0,dh`;
+export function getNaverMapUrl(lat: number, lng: number, placeName: string): string {
+  const encName = encodeURIComponent(placeName);
+  return `https://map.naver.com/v5/directions/-/-/-/transit?c=${lng},${lat},15,0,0,0,dh&destination=${encName},${lng},${lat}`;
 }
 
 /**
- * T맵 길찾기 웹 링크 생성
+ * 티맵 (TMAP) 길찾기 URL 생성
  */
-export function getTMapUrl(lat: number, lng: number, name?: string): string {
-  const encodedName = encodeURIComponent(name || '목적지');
-  return `https://tmap.co.kr/tmap2/mobile/route.jsp?name=${encodedName}&lat=${lat}&lon=${lng}`;
+export function getTMapUrl(lat: number, lng: number, placeName: string): string {
+  const encName = encodeURIComponent(placeName);
+  return `https://apis.openapi.sk.com/tmap/app/routes?appKey=&name=${encName}&lon=${lng}&lat=${lat}`;
+}
+
+/**
+ * =========================================================================
+ * 타임존 안전 날짜/시간 파서 및 포맷터 (KST 한국 표준시 시차 왜곡 방지)
+ * =========================================================================
+ */
+
+/**
+ * ISO 또는 날짜 문자열로부터 로컬 날짜(YYYY-MM-DD)와 시간(HH:mm)을 오차 없이 추출
+ */
+export function parseLocalDateTime(isoString?: string): { date: string; time: string } {
+  if (!isoString) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return { date: `${year}-${month}-${day}`, time: '06:00' };
+  }
+
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) {
+    return { date: '2026-09-19', time: '06:00' };
+  }
+
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${hours}:${minutes}`,
+  };
+}
+
+/**
+ * 로컬 날짜(YYYY-MM-DD)와 시간(HH:mm)을 한국 표준시 ISO 8601 문자열(YYYY-MM-DDTHH:mm:00+09:00)로 변환
+ */
+export function formatToKoreanIso(dateStr: string, timeStr: string): string {
+  const cleanDate = dateStr.trim();
+  const cleanTime = (timeStr.trim() || '06:00').substring(0, 5);
+  return `${cleanDate}T${cleanTime}:00+09:00`;
 }

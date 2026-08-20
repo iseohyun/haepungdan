@@ -1,9 +1,8 @@
 import Dexie, { Table } from 'dexie';
-import { Gathering, GatheringRSVP, GatheringReview, POI, SyncMetadata, UserProfile, GatheringStatus, RSVPStatus } from '../types';
-import { INITIAL_GATHERINGS, INITIAL_POIS, MOCK_USERS } from '../data/initialData';
+import { Gathering, GatheringRSVP, GatheringReview, SyncMetadata, UserProfile, GatheringStatus, RSVPStatus } from '../types';
+import { MOCK_USERS } from '../data/initialData';
 
 export class HaepungdanDatabase extends Dexie {
-  pois!: Table<POI, string>;
   gatherings!: Table<Gathering, string>;
   rsvps!: Table<GatheringRSVP, string>;
   reviews!: Table<GatheringReview, string>;
@@ -13,9 +12,8 @@ export class HaepungdanDatabase extends Dexie {
   constructor() {
     super('haepungdan_db');
 
-    this.version(1).stores({
-      pois: 'id, category, name',
-      gatherings: 'id, status, dateTime, locationName, updatedAt, isDeleted',
+    this.version(3).stores({
+      gatherings: 'id, roundNumber, status, dateTime, locationName, updatedAt, isDeleted',
       rsvps: 'id, gatheringId, userId, status, updatedAt',
       reviews: 'id, gatheringId, userId, rating, createdAt, updatedAt',
       users: 'uid, email, role',
@@ -24,19 +22,9 @@ export class HaepungdanDatabase extends Dexie {
   }
 
   /**
-   * 초기 데이터베이스 시딩 (첫 접속 시 네트워크 쿼리 0회로 초기 로딩)
+   * 초기 데이터베이스 시딩
    */
   async seedInitialData(): Promise<void> {
-    const poiCount = await this.pois.count();
-    if (poiCount === 0) {
-      await this.pois.bulkAdd(INITIAL_POIS);
-    }
-
-    const gatheringCount = await this.gatherings.count();
-    if (gatheringCount === 0) {
-      await this.gatherings.bulkAdd(INITIAL_GATHERINGS);
-    }
-
     const userCount = await this.users.count();
     if (userCount === 0) {
       await this.users.bulkAdd(Object.values(MOCK_USERS));
@@ -46,9 +34,22 @@ export class HaepungdanDatabase extends Dexie {
     if (!syncMeta) {
       await this.syncMeta.put({
         key: 'lastSyncTimestamp',
-        value: new Date().toISOString(),
+        value: '1970-01-01T00:00:00.000Z',
       });
     }
+  }
+
+
+
+
+  /**
+   * 모임 전체 정보 수정
+   */
+  async updateGathering(gatheringId: string, updates: Partial<Gathering>): Promise<void> {
+    await this.gatherings.update(gatheringId, {
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    });
   }
 
   /**
@@ -109,49 +110,31 @@ export class HaepungdanDatabase extends Dexie {
       };
       await this.rsvps.add(newRsvp);
     }
-
-    // 모임의 updatedAt 갱신
-    await this.gatherings.update(gatheringId, {
-      updatedAt: now,
-    });
   }
 
   /**
    * 모임 후기 등록
    */
-  async addReview(reviewData: Omit<GatheringReview, 'id' | 'createdAt' | 'updatedAt'>): Promise<GatheringReview> {
+  async addReview(review: Omit<GatheringReview, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> {
+    const id = `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const now = new Date().toISOString();
+
     const newReview: GatheringReview = {
-      ...reviewData,
-      id: `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      ...review,
+      id,
       createdAt: now,
       updatedAt: now,
     };
 
     await this.reviews.add(newReview);
-
-    // 모임의 updatedAt 갱신
-    await this.gatherings.update(reviewData.gatheringId, {
-      updatedAt: now,
-    });
-
-    return newReview;
   }
 
   /**
    * 모임 후기 삭제
    */
-  async deleteReview(reviewId: string, gatheringId: string): Promise<void> {
+  async deleteReview(reviewId: string, _gatheringId: string): Promise<void> {
     await this.reviews.delete(reviewId);
-    await this.gatherings.update(gatheringId, {
-      updatedAt: new Date().toISOString(),
-    });
   }
 }
 
 export const db = new HaepungdanDatabase();
-
-// 앱 시작 시 자동 시딩 실행
-db.on('ready', async () => {
-  await db.seedInitialData();
-});

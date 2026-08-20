@@ -1,14 +1,11 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
-import { Gathering, LocationPosition, POI } from '../types';
-import { percentToGps, createLocationFromPercent } from '../utils/coordinates';
+import { Gathering } from '../types';
+import { percentToGps } from '../utils/coordinates';
 import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
-  MapPin,
-  Sparkles,
-  Layers,
   Crosshair,
 } from 'lucide-react';
 
@@ -18,27 +15,15 @@ export interface MapViewerRef {
 }
 
 interface MapViewerProps {
-  pois: POI[];
   gatherings: Gathering[];
   selectedGatheringId: string | null;
   onSelectGathering: (gathering: Gathering) => void;
-  onSelectPoi?: (poi: POI) => void;
-  isPickingLocation?: boolean;
-  onLocationPicked?: (pos: LocationPosition) => void;
-  showPois?: boolean;
-  onTogglePois?: () => void;
 }
 
 export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
-  pois,
   gatherings,
   selectedGatheringId,
   onSelectGathering,
-  onSelectPoi,
-  isPickingLocation = false,
-  onLocationPicked,
-  showPois = true,
-  onTogglePois,
 }, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapElementRef = useRef<HTMLDivElement>(null);
@@ -82,7 +67,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       startScale: fitScale,
       startX: 0,
       startY: 0,
-      cursor: isPickingLocation ? 'crosshair' : 'grab',
+      cursor: 'grab',
       canvas: true,
       // 1:1 마우스 드래그 속도 일치 및 정밀 경계 이탈 방지
       setTransform: (elem, { scale, x, y }) => {
@@ -118,147 +103,120 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
 
     panzoomInstanceRef.current = panzoom;
 
-    const parent = mapElementRef.current.parentElement;
-
-    const onWheel = (e: WheelEvent) => {
+    // 휠 줌 바인딩
+    const handleWheel = (e: WheelEvent) => {
       e.preventDefault();
       panzoom.zoomWithWheel(e);
     };
 
-    parent?.addEventListener('wheel', onWheel, { passive: false });
+    const containerEl = containerRef.current;
+    containerEl.addEventListener('wheel', handleWheel, { passive: false });
 
-    // 초기 화면 중앙 맞춤
-    const timer = setTimeout(() => {
-      resetToFit();
-    }, 80);
-
-    // 윈도우 리사이즈 시 화면 맞춤 및 minScale 갱신
+    // 윈도우 리사이즈 시 fitScale 자동 갱신
     const handleResize = () => {
-      if (panzoomInstanceRef.current) {
-        const newFit = getFitScale();
-        panzoomInstanceRef.current.setOptions({ minScale: newFit });
-      }
+      const newFitScale = getFitScale();
+      panzoom.setOptions({ minScale: newFitScale });
     };
 
     window.addEventListener('resize', handleResize);
 
     return () => {
-      clearTimeout(timer);
-      parent?.removeEventListener('wheel', onWheel);
+      containerEl.removeEventListener('wheel', handleWheel);
       window.removeEventListener('resize', handleResize);
       panzoom.destroy();
     };
-  }, [isPickingLocation, getFitScale, resetToFit]);
+  }, [getFitScale]);
 
-  // 외부에서 특정 좌표로 포커스 이동할 수 있도록 ImperativeHandle 제공
+  // 부모 컴포넌트에 focusCoordinate, resetView 함수 노출
   useImperativeHandle(ref, () => ({
-    focusCoordinate: (x_pct: number, y_pct: number, targetScale = 2.2) => {
-      if (!panzoomInstanceRef.current) return;
+    focusCoordinate: (x_pct: number, y_pct: number, targetScale = 2.4) => {
+      if (!panzoomInstanceRef.current || !containerRef.current) return;
 
-      // 중앙(50%, 50%) 기준 오프셋 계산
+      const containerW = containerRef.current.clientWidth;
+      const containerH = containerRef.current.clientHeight;
+
       const targetX = ((50 - x_pct) / 100) * 701;
       const targetY = ((50 - y_pct) / 100) * 820;
 
+      let clampedX = targetX;
+      if (701 * targetScale > containerW) {
+        const maxAllowedX = (701 - containerW / targetScale) / 2;
+        clampedX = Math.max(-maxAllowedX, Math.min(maxAllowedX, targetX));
+      } else {
+        clampedX = 0;
+      }
+
+      let clampedY = targetY;
+      if (820 * targetScale > containerH) {
+        const maxAllowedY = (820 - containerH / targetScale) / 2;
+        clampedY = Math.max(-maxAllowedY, Math.min(maxAllowedY, targetY));
+      } else {
+        clampedY = 0;
+      }
+
       panzoomInstanceRef.current.zoom(targetScale, { animate: true });
       setTimeout(() => {
-        panzoomInstanceRef.current?.pan(targetX, targetY, { animate: true });
-      }, 80);
+        panzoomInstanceRef.current?.pan(clampedX, clampedY, { animate: true });
+      }, 50);
     },
     resetView: () => {
       resetToFit();
     },
   }));
 
-  // 마우스 이동 시 좌표 계산 (Bounding Box 공식 적용)
+  // 마우스 이동 시 실시간 GPS 좌표 계산
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!mapElementRef.current) return;
     const rect = mapElementRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
-    const clientX = e.clientX - rect.left;
-    const clientY = e.clientY - rect.top;
+    const x_pct = (x / rect.width) * 100;
+    const y_pct = (y / rect.height) * 100;
 
-    const x_pct = Math.max(0, Math.min(100, (clientX / rect.width) * 100));
-    const y_pct = Math.max(0, Math.min(100, (clientY / rect.height) * 100));
-
-    const { lat, lng } = percentToGps(x_pct, y_pct);
-    setCursorGps({ lat, lng, x_pct, y_pct });
+    if (x_pct >= 0 && x_pct <= 100 && y_pct >= 0 && y_pct <= 100) {
+      const gps = percentToGps(x_pct, y_pct);
+      setCursorGps({
+        lat: gps.lat,
+        lng: gps.lng,
+        x_pct,
+        y_pct,
+      });
+    }
   };
 
-  // 지도 클릭 핸들러 (좌표 선택 모드일 때 위치 반환)
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isPickingLocation || !onLocationPicked || !mapElementRef.current) return;
-    const rect = mapElementRef.current.getBoundingClientRect();
-
-    const clientX = e.clientX - rect.left;
-    const clientY = e.clientY - rect.top;
-
-    const x_pct = Math.max(0, Math.min(100, (clientX / rect.width) * 100));
-    const y_pct = Math.max(0, Math.min(100, (clientY / rect.height) * 100));
-
-    const pos = createLocationFromPercent(x_pct, y_pct);
-    onLocationPicked(pos);
-  };
-
-  const mapSrc = `${import.meta.env.BASE_URL}map.jpg`;
+  const activeGatherings = gatherings.filter((g) => !g.isDeleted);
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full bg-slate-950 overflow-hidden flex items-center justify-center select-none"
+      className="relative w-full h-full overflow-hidden bg-slate-950 select-none flex items-center justify-center"
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => setCursorGps(null)}
     >
-      {/* 지도 캔버스 영역 (Panzoom 기본 transform-origin: 50% 50% 적용) */}
+      {/* Panzoom 대상 컨테이너 (고정 크기 701x820 비율) */}
       <div
         ref={mapElementRef}
-        onMouseMove={handleMouseMove}
-        onClick={handleMapClick}
-        className="relative transition-transform shrink-0"
+        className="relative shadow-2xl cursor-grab active:cursor-grabbing shrink-0"
         style={{
           width: '701px',
           height: '820px',
+          touchAction: 'none',
         }}
       >
-        {/* 거제 지도 배경 이미지 */}
+        {/* 거제도 클린 지도 이미지 */}
         <img
-          src={mapSrc}
+          src={`${import.meta.env.BASE_URL}map.jpg`}
           alt="거제도 지도"
-          className="w-full h-full object-contain pointer-events-none shadow-2xl rounded-none block"
+          className="w-full h-full object-fill pointer-events-none rounded-2xl shadow-inner"
           draggable={false}
         />
 
-        {/* POI 마커 레이어 */}
-        {showPois &&
-          pois.map((poi) => (
-            <div
-              key={poi.id}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (onSelectPoi) onSelectPoi(poi);
-              }}
-              className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
-              style={{
-                left: `${poi.position.x_pct}%`,
-                top: `${poi.position.y_pct}%`,
-              }}
-            >
-              <div className="w-5 h-5 rounded-full bg-sky-500/85 border border-white flex items-center justify-center text-white shadow-md group-hover:scale-125 transition-transform">
-                <MapPin className="w-3 h-3" />
-              </div>
-
-              {/* POI 라벨 툴팁 */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
-                <div className="bg-slate-900/95 text-sky-300 text-[11px] font-semibold px-2 py-0.5 rounded shadow-lg border border-slate-700 whitespace-nowrap">
-                  {poi.name}
-                </div>
-              </div>
-            </div>
-          ))}
-
-        {/* 모임 마커 오버레이 레이어 */}
-        {gatherings.filter((g) => !g.isDeleted).map((g) => {
+        {/* 1. 소모임 핀 마커 렌더링 (회차 숫자만 깔끔하게 출력) */}
+        {activeGatherings.map((g) => {
           const isSelected = g.id === selectedGatheringId;
           const isRecruiting = g.status === 'RECRUITING';
-          const isProposed = g.status === 'PROPOSED';
-          const isConfirmed = g.status === 'CONFIRMED';
+          const displayNumber = g.roundNumber !== undefined ? g.roundNumber : '•';
 
           return (
             <div
@@ -267,36 +225,32 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                 e.stopPropagation();
                 onSelectGathering(g);
               }}
-              className={`absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform ${
-                isSelected ? 'scale-125 z-30' : 'hover:scale-110'
-              }`}
               style={{
                 left: `${g.position.x_pct}%`,
                 top: `${g.position.y_pct}%`,
               }}
+              className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-15 group transition-transform duration-200 hover:scale-125"
             >
-              {/* 마커 핀 본체 */}
+              {/* 모집 중일 때 펄스 링 */}
+              {isRecruiting && (
+                <div className="absolute -inset-1.5 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />
+              )}
+
+              {/* 회차 숫자 마커 핀 (숫자만 표시) */}
               <div
-                className={`relative flex items-center justify-center rounded-full border-2 shadow-xl ${
-                  isRecruiting
-                    ? 'w-8 h-8 bg-emerald-500 border-white text-white animate-recruiting-pulse'
-                    : isProposed
-                    ? 'w-7 h-7 bg-amber-500 border-white text-white'
-                    : isConfirmed
-                    ? 'w-7 h-7 bg-sky-500 border-white text-white'
-                    : 'w-6 h-6 bg-slate-600 border-slate-300 text-slate-200'
+                className={`w-7 h-7 rounded-full shadow-2xl transition-all flex items-center justify-center font-mono font-black text-xs ${
+                  isSelected
+                    ? 'bg-gradient-to-br from-ocean-500 to-cyan-400 text-white scale-125 ring-4 ring-white/80 shadow-ocean-500/50'
+                    : isRecruiting
+                    ? 'bg-emerald-500 text-white shadow-emerald-500/40 ring-2 ring-emerald-300 animate-recruiting-pulse'
+                    : 'bg-slate-900/95 text-slate-100 border-2 border-slate-600 hover:border-ocean-400 hover:bg-ocean-600 hover:text-white shadow-lg'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
-
-                {/* 선택 표시 링 */}
-                {isSelected && (
-                  <span className="absolute -inset-1.5 rounded-full border-2 border-ocean-400 animate-ping opacity-75" />
-                )}
+                {displayNumber}
               </div>
 
-              {/* 모임 제목 플로팅 라벨 */}
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 flex flex-col items-center pointer-events-none">
+              {/* 호버 시 모임명 툴팁 */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
                 <div
                   className={`px-2 py-0.5 rounded text-[10px] font-bold whitespace-nowrap shadow-md border ${
                     isSelected
@@ -306,7 +260,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                       : 'bg-slate-900/90 text-slate-200 border-slate-700'
                   }`}
                 >
-                  {g.title}
+                  {g.roundNumber !== undefined ? (g.roundNumber === 0 ? '[번개] ' : `[제 ${g.roundNumber}차] `) : ''}{g.title}
                 </div>
               </div>
             </div>
@@ -314,7 +268,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
         })}
       </div>
 
-      {/* 우측 상단 플로팅 컨트롤 (줌 & 레이어) */}
+      {/* 우측 상단 플로팅 컨트롤 (줌 & 리셋) */}
       <div className="absolute top-4 right-3 md:right-4 z-20 flex flex-col gap-2">
         <div className="glass-panel rounded-2xl p-1 flex flex-col shadow-xl">
           <button
@@ -339,21 +293,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
             <RotateCcw className="w-4 h-4" />
           </button>
         </div>
-
-        {/* POI 레이어 토글 */}
-        {onTogglePois && (
-          <button
-            onClick={onTogglePois}
-            className={`p-2.5 rounded-2xl border glass-panel shadow-xl transition flex items-center justify-center ${
-              showPois
-                ? 'bg-ocean-600/30 border-ocean-500/50 text-ocean-300'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-            title={showPois ? '거제 명소(POI) 숨기기' : '거제 명소(POI) 표시'}
-          >
-            <Layers className="w-4 h-4" />
-          </button>
-        )}
       </div>
 
       {/* 좌측 하단 실시간 GIS 좌표 표시창 */}
@@ -378,14 +317,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
           <span className="text-slate-500">지도 위로 마우스를 이동하세요</span>
         )}
       </div>
-
-      {/* 위치 선택 안내 오버레이 (모임 생성 중일 때) */}
-      {isPickingLocation && (
-        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-30 bg-ocean-600 text-white text-xs font-semibold px-4 py-2 rounded-full shadow-2xl animate-bounce flex items-center gap-2 border border-ocean-300">
-          <Crosshair className="w-4 h-4" />
-          지도에서 모임 장소의 위치를 클릭하세요!
-        </div>
-      )}
     </div>
   );
 });

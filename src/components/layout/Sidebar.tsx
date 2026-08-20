@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Gathering, POI } from '../../types';
+import { Gathering } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { exportDatabaseToJson, importDatabaseFromJson } from '../../services/backup';
 import { firebaseService } from '../../services/firebase';
@@ -7,9 +7,7 @@ import { APP_VERSION, RELEASE_TAG } from '../../constants/version';
 import {
   X,
   PlusCircle,
-  Calendar as CalendarIcon,
   MapPin,
-  Layers,
   Download,
   Upload,
   Search,
@@ -20,51 +18,45 @@ import {
   Eye,
   ChevronRight,
   Compass,
-  RotateCcw,
   Cloud,
   Settings,
+  LogOut,
 } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   gatherings: Gathering[];
-  pois: POI[];
   selectedGatheringId: string | null;
   onSelectGathering: (gathering: Gathering) => void;
-  onSelectPoi: (poi: POI) => void;
   onFocusCoordinate: (x_pct: number, y_pct: number) => void;
-  onResetMapView: () => void;
   onOpenCreateModal: () => void;
   onOpenAdminModal?: () => void;
   onOpenFirebaseConfig?: () => void;
-  isCalendarOpen: boolean;
-  onToggleCalendar: () => void;
-  showPois: boolean;
-  onTogglePois: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onClose,
   gatherings,
-  pois,
   selectedGatheringId,
   onSelectGathering,
-  onSelectPoi,
   onFocusCoordinate,
-  onResetMapView,
   onOpenCreateModal,
   onOpenAdminModal,
   onOpenFirebaseConfig,
-  isCalendarOpen,
-  onToggleCalendar,
-  showPois,
-  onTogglePois,
 }) => {
-  const { currentUser, currentRole, canCreateGathering, canProposeGathering, loginAs, isAdmin } = useAuth();
+  const {
+    currentUser,
+    currentRole,
+    canCreateGathering,
+    canProposeGathering,
+    loginWithGoogle,
+    logout,
+    isAdmin,
+  } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'gatherings' | 'pois' | 'tools'>('gatherings');
+  const [activeTab, setActiveTab] = useState<'gatherings' | 'tools'>('gatherings');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
@@ -84,11 +76,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
     })
     .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
 
-  // POI 목록 필터링
-  const filteredPois = pois.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const getStatusBadge = (status: Gathering['status']) => {
     switch (status) {
       case 'PROPOSED':
@@ -101,21 +88,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-300 border border-slate-500/30">완료</span>;
       case 'CANCELLED':
         return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">취소</span>;
-    }
-  };
-
-  const getPoiCategoryBadge = (cat: POI['category']) => {
-    switch (cat) {
-      case 'beach':
-        return <span className="text-[10px] text-sky-400 bg-sky-950/60 px-1.5 py-0.5 rounded border border-sky-800/60">해수욕장</span>;
-      case 'attraction':
-        return <span className="text-[10px] text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800/60">명소</span>;
-      case 'nature':
-        return <span className="text-[10px] text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800/60">자연</span>;
-      case 'transport':
-        return <span className="text-[10px] text-purple-400 bg-purple-950/60 px-1.5 py-0.5 rounded border border-purple-800/60">집결/교통</span>;
-      default:
-        return <span className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded">기타</span>;
     }
   };
 
@@ -140,6 +112,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }
     }
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Google 로그인 버튼 핸들러
+  const handleGoogleAuthClick = async () => {
+    if (!firebaseService.isConfigured) {
+      if (
+        confirm(
+          'Firebase 클라우드 연동이 아직 설정되지 않았습니다.\nFirebase 설정 모달을 열어 키를 입력하시겠습니까?\n(취소 시 임시 모의 로그인으로 접속됩니다.)'
+        )
+      ) {
+        if (onOpenFirebaseConfig) onOpenFirebaseConfig();
+        return;
+      }
+    }
+
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      alert(`로그인 실패: ${err.message || 'Google 팝업 인증을 확인해주세요.'}`);
+    }
   };
 
   const isCloudConnected = firebaseService.isConfigured;
@@ -195,9 +187,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* 2. 퀵 액션 바 (새 모임 개설 / 달력 토글 / POI 토글 / 지도 리셋) */}
-        <div className="p-3 bg-slate-900/50 border-b border-slate-800/80 space-y-2 shrink-0">
-          {(canCreateGathering || canProposeGathering) && (
+        {/* 2. 모임 개설 상단 버튼 (권한 있을 때) */}
+        {(canCreateGathering || canProposeGathering) && (
+          <div className="p-3 bg-slate-900/50 border-b border-slate-800/80 shrink-0">
             <button
               onClick={() => {
                 onOpenCreateModal();
@@ -208,46 +200,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <PlusCircle className="w-4 h-4" />
               <span>{canCreateGathering ? '새 모임 개설하기 (공식)' : '모임 제안하기 (정회원)'}</span>
             </button>
-          )}
-
-          <div className="grid grid-cols-3 gap-1.5 text-xs">
-            <button
-              onClick={onToggleCalendar}
-              className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 font-medium transition ${
-                isCalendarOpen
-                  ? 'bg-ocean-600/25 border-ocean-500/50 text-ocean-300'
-                  : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <CalendarIcon className="w-3.5 h-3.5" />
-              <span>달력 {isCalendarOpen ? 'ON' : 'OFF'}</span>
-            </button>
-
-            <button
-              onClick={onTogglePois}
-              className={`p-2 rounded-xl border flex items-center justify-center gap-1.5 font-medium transition ${
-                showPois
-                  ? 'bg-ocean-600/25 border-ocean-500/50 text-ocean-300'
-                  : 'bg-slate-800/60 border-slate-700/60 text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>명소 {showPois ? 'ON' : 'OFF'}</span>
-            </button>
-
-            <button
-              onClick={() => {
-                onResetMapView();
-                if (window.innerWidth < 768) onClose();
-              }}
-              className="p-2 rounded-xl bg-slate-800/60 border border-slate-700/60 text-slate-400 hover:text-slate-200 flex items-center justify-center gap-1.5 font-medium transition"
-              title="지도 위치 초기화"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>맵 리셋</span>
-            </button>
           </div>
-        </div>
+        )}
 
         {/* 3. 탭 네비게이션 */}
         <div className="flex border-b border-slate-800 bg-slate-900/70 px-3 shrink-0">
@@ -262,16 +216,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <Sparkles className="w-3.5 h-3.5" /> 모임 ({gatherings.filter((g) => !g.isDeleted).length})
           </button>
           <button
-            onClick={() => setActiveTab('pois')}
-            className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 ${
-              activeTab === 'pois'
-                ? 'border-ocean-500 text-ocean-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <MapPin className="w-3.5 h-3.5" /> 거제 명소 ({pois.length})
-          </button>
-          <button
             onClick={() => setActiveTab('tools')}
             className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 ${
               activeTab === 'tools'
@@ -279,18 +223,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Settings className="w-3.5 h-3.5" /> 관리 도구
+            <Settings className="w-3.5 h-3.5" /> 관리 & 설정
           </button>
         </div>
 
-        {/* 4. 검색창 */}
-        {activeTab !== 'tools' && (
+        {/* 4. 검색창 (모임 탭일 때) */}
+        {activeTab === 'gatherings' && (
           <div className="p-3 border-b border-slate-800/80 bg-slate-950/40 shrink-0">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder={activeTab === 'gatherings' ? '모임명, 장소, 작성자 검색...' : '명소 이름 검색...'}
+                placeholder="모임명, 장소, 작성자 검색..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-8 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-ocean-500"
@@ -360,9 +304,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-bold text-xs leading-snug line-clamp-2 text-slate-100">
-                          {g.title}
-                        </h4>
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          {g.roundNumber !== undefined && (
+                            <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-ocean-600 text-white shrink-0">
+                              {g.roundNumber === 0 ? '번개' : `${g.roundNumber}차`}
+                            </span>
+                          )}
+                          <h4 className="font-bold text-xs leading-snug line-clamp-2 text-slate-100">
+                            {g.title}
+                          </h4>
+                        </div>
                         {getStatusBadge(g.status)}
                       </div>
 
@@ -391,43 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* TAB 2: 거제 8대 명소(POI) */}
-          {activeTab === 'pois' && (
-            <div className="space-y-2">
-              {filteredPois.map((poi) => (
-                <div
-                  key={poi.id}
-                  onClick={() => {
-                    onSelectPoi(poi);
-                    onFocusCoordinate(poi.position.x_pct, poi.position.y_pct);
-                    if (window.innerWidth < 768) onClose();
-                  }}
-                  className="p-3 rounded-2xl glass-card text-slate-200 border border-slate-800 hover:border-ocean-500/50 transition cursor-pointer flex flex-col gap-1"
-                >
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-bold text-xs text-white flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-sky-400" />
-                      {poi.name}
-                    </h4>
-                    {getPoiCategoryBadge(poi.category)}
-                  </div>
-
-                  {poi.metadata?.description && (
-                    <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
-                      {poi.metadata.description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-800/80 font-mono">
-                    <span>GPS: {poi.position.lat.toFixed(4)}, {poi.position.lng.toFixed(4)}</span>
-                    <span className="text-sky-400">지도 포커스 →</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* TAB 3: 관리자 & 백업 & 클라우드 도구 */}
+          {/* TAB 2: 관리 도구 & 클라우드 설정 */}
           {activeTab === 'tools' && (
             <div className="space-y-3 p-1">
               
@@ -450,7 +365,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-[11px] text-slate-400 leading-relaxed">
                   {isCloudConnected
                     ? 'Firebase Firestore 증분 동기화(Delta Sync)가 활성화되어 있습니다.'
-                    : 'Firebase 키를 입력하면 다중 기기 실시간 동기화가 활성화됩니다.'}
+                    : 'Firebase 키를 입력하면 Google 로그인과 다중 기기 실시간 동기화가 활성화됩니다.'}
                 </p>
 
                 {onOpenFirebaseConfig && (
@@ -496,7 +411,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Download className="w-4 h-4 text-emerald-400" /> 전체 DB 백업 & 복원
                 </h4>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  현재 IndexedDB에 저장된 모든 모임, 후기, POI 데이터를 하나의 JSON 파일로 백업하거나 복구합니다.
+                  현재 IndexedDB에 저장된 모든 모임 및 후기 데이터를 하나의 JSON 파일로 백업하거나 복구합니다.
                 </p>
                 <div className="flex gap-2">
                   <button
@@ -524,12 +439,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* 6. 하단 사용자 프로필 & 권한 스위처 */}
-        <div className="p-3.5 bg-slate-900/95 border-t border-slate-800 space-y-2.5 shrink-0">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
-                {currentRole === 'ADMIN' ? (
+        {/* 6. 하단 사용자 프로필 및 오른쪽 정렬 Google 로그인 버튼 */}
+        <div className="p-3.5 bg-slate-900/95 border-t border-slate-800 space-y-2 shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            {/* 좌측: 현재 사용자 및 권한 정보 */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 shrink-0 overflow-hidden">
+                {currentUser?.photoURL ? (
+                  <img src={currentUser.photoURL} alt={currentUser.displayName} className="w-full h-full object-cover" />
+                ) : currentRole === 'ADMIN' ? (
                   <Shield className="w-4 h-4 text-amber-400" />
                 ) : currentRole === 'MEMBER' ? (
                   <UserCheck className="w-4 h-4 text-emerald-400" />
@@ -539,42 +457,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Eye className="w-4 h-4 text-slate-400" />
                 )}
               </div>
-              <div>
-                <span className="font-bold text-xs text-white block leading-tight">
+              <div className="min-w-0">
+                <span className="font-bold text-xs text-white block leading-tight truncate">
                   {currentUser ? currentUser.displayName : '비로그인 방문자'}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] text-slate-400 block truncate">
                   {currentRole === 'ADMIN'
-                    ? '관리자 (전체 권한)'
+                    ? '👑 관리자 (전체 권한)'
                     : currentRole === 'MEMBER'
-                    ? '정회원 (제안/RSVP/후기)'
+                    ? '👤 정회원 (활동 권한)'
                     : currentRole === 'GUEST'
-                    ? '게스트 (승인 대기)'
-                    : '열람 전용 모드'}
+                    ? '⏳ 게스트 (승인 대기)'
+                    : '🔓 열람 전용'}
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* 권한 스위처 선택창 */}
-          <select
-            value={
-              currentUser
-                ? currentRole === 'ADMIN'
-                  ? 'admin'
-                  : currentRole === 'MEMBER'
-                  ? 'member'
-                  : 'guest'
-                : 'unauth'
-            }
-            onChange={(e) => loginAs(e.target.value as 'unauth' | 'guest' | 'member' | 'admin')}
-            className="w-full bg-slate-950 border border-slate-700/80 text-xs text-slate-200 rounded-xl px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-ocean-500 cursor-pointer"
-          >
-            <option value="unauth">🔓 비로그인 (열람 전용)</option>
-            <option value="guest">⏳ 게스트 (박초보 / 승인대기)</option>
-            <option value="member">👤 정회원 (김바다 / 활동가능)</option>
-            <option value="admin">👑 관리자 (이서현 / 모임관리)</option>
-          </select>
+            {/* 우측 정렬 Google 로그인 / 로그아웃 버튼 */}
+            <div className="shrink-0">
+              {currentUser ? (
+                <button
+                  onClick={logout}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition border border-slate-700 flex items-center gap-1"
+                  title="로그아웃"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>로그아웃</span>
+                </button>
+              ) : (
+                <button
+                  onClick={handleGoogleAuthClick}
+                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold transition shadow flex items-center gap-1.5 active:scale-95"
+                  title="Google 계정으로 로그인"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                    <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24z"/>
+                    <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.99 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                  </svg>
+                  <span>Google 로그인</span>
+                </button>
+              )}
+            </div>
+          </div>
 
           {/* 버전 표시 */}
           <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 font-mono">

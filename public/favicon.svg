@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="50%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#0c4a6e" />
+    </linearGradient>
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0ea5e9" />
+    </linearGradient>
+  </defs>
+
+  <!-- 원형 배경 -->
+  <circle cx="32" cy="32" r="30" fill="url(#oceanGrad)" stroke="#38bdf8" stroke-width="2.5" />
+
+  <!-- 파도 물결 그래픽 -->
+  <path d="M8 36 C16 28, 24 44, 32 36 C40 28, 48 44, 56 36 L56 52 C48 54, 40 50, 32 52 C24 50, 16 54, 8 52 Z" fill="url(#waveGrad)" opacity="0.85" />
+  <path d="M8 42 C16 36, 24 48, 32 42 C40 36, 48 48, 56 42 L56 56 C48 58, 40 56, 32 58 C24 56, 16 58, 8 56 Z" fill="#0284c7" opacity="0.9" />
+
+  <!-- 바다수영 사람/돌고래 실루엣 & 거제 바람 -->
+  <circle cx="38" cy="20" r="4.5" fill="#f8fafc" />
+  <path d="M20 28 C26 23, 34 22, 44 26 C42 29, 36 30, 30 31 C25 32, 22 30, 20 28 Z" fill="#f8fafc" />
+  <path d="M28 22 C32 18, 38 17, 44 19" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" fill="none" />
+</svg>

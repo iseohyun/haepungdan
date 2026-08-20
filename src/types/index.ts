@@ -6,28 +6,16 @@ export interface LocationPosition {
   lng: number;   // WGS84 경도 (예: 128.67094)
 }
 
-// 2. 추천 POI (거제 주요 거점)
-export interface POI {
-  id: string;
-  name: string;
-  category: 'beach' | 'attraction' | 'nature' | 'transport' | 'food';
-  position: LocationPosition;
-  metadata?: {
-    description?: string;
-    safety_info?: string;
-    recommended_activities?: string[];
-  };
-}
-
-// 3. 모임 상태
+// 2. 모임 상태
 export type GatheringStatus = 'PROPOSED' | 'RECRUITING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 
-// 4. 모임 데이터 인터페이스
+// 3. 모임 데이터 인터페이스
 export interface Gathering {
   id: string;
+  roundNumber?: number;        // 모임 회차 (숫자만)
   title: string;
   status: GatheringStatus;
-  dateTime: string;            // ISO 8601 일시 (예: "2026-09-10T14:00:00+09:00")
+  dateTime: string;            // ISO 8601 일시 (예: "2026-09-10T06:00:00+09:00")
   locationName: string;        // 장소명 (예: "구조라해수욕장")
   locationDetail?: string;     // 상세 주소 / 집결 장소
   position: LocationPosition;  // 지도 오버레이 및 GPS 위치
@@ -42,6 +30,17 @@ export interface Gathering {
   createdAt: string;           // 생성 일시
   updatedAt: string;           // 마지막 수정 일시 (증분 동기화 기준)
   isDeleted?: boolean;         // 소프트 삭제 플래그
+}
+
+// 4. 집결위치 및 좌표 프리셋 DB 인터페이스
+export interface LocationPreset {
+  id: string;
+  name: string;                // 장소명 (예: "구조라해수욕장")
+  detail?: string;              // 상세 집결위치 (예: "해변 중앙 파라솔 앞")
+  lat: number;
+  lng: number;
+  position: LocationPosition;
+  createdAt?: string;
 }
 
 // 5. 참여 응답 (RSVP)

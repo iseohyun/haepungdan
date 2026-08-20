@@ -12,14 +12,16 @@ import {
   getFirestore,
   collection,
   doc,
+  setDoc,
+  deleteDoc,
   getDocs,
-  query,
-  where,
   Firestore,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './db';
-import { Gathering, GatheringRSVP } from '../types';
+import { Gathering, GatheringRSVP, GatheringReview } from '../types';
+
+
 
 export interface FirebaseConfig {
   apiKey: string;
@@ -28,7 +30,19 @@ export interface FirebaseConfig {
   storageBucket?: string;
   messagingSenderId?: string;
   appId: string;
+  measurementId?: string;
 }
+
+// 해풍단 기본 공식 Firebase 설정
+export const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
+  apiKey: "AIzaSyDibDuDh-K_lpplBnEOgD-1LxWNQjIF2_c",
+  authDomain: "haepungdan.firebaseapp.com",
+  projectId: "haepungdan",
+  storageBucket: "haepungdan.firebasestorage.app",
+  messagingSenderId: "97189054441",
+  appId: "1:97189054441:web:940fa95af726c62098ed78",
+  measurementId: "G-8V01H8KDTR"
+};
 
 const STORAGE_KEY = 'haepungdan_firebase_config';
 
@@ -43,13 +57,13 @@ class FirebaseService {
   }
 
   /**
-   * 저장소 또는 환경변수로부터 Firebase 초기화
+   * 저장소, 환경변수 또는 기본 공식 설정으로부터 Firebase 초기화
    */
   public initFromStorage(): boolean {
     try {
       let config: FirebaseConfig | null = null;
 
-      // 1. LocalStorage 확인
+      // 1. LocalStorage 확인 (사용자 정의 키 우선)
       const savedConfig = localStorage.getItem(STORAGE_KEY);
       if (savedConfig) {
         config = JSON.parse(savedConfig);
@@ -62,11 +76,15 @@ class FirebaseService {
           storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
           messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
           appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+          measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
         };
+      } else {
+        // 3. 해풍단 공식 기본 Firebase 설정 적용
+        config = DEFAULT_FIREBASE_CONFIG;
       }
 
       if (config && config.apiKey && config.projectId) {
-        return this.initApp(config);
+        return this.initApp(config, false);
       }
     } catch (e) {
       console.warn('Firebase auto-init skipped or failed:', e);
@@ -75,15 +93,17 @@ class FirebaseService {
   }
 
   /**
-   * 설정 객체로 Firebase 수동 초기화
+   * 설정 객체로 Firebase 수동/자동 초기화
    */
-  public initApp(config: FirebaseConfig): boolean {
+  public initApp(config: FirebaseConfig, saveToStorage = true): boolean {
     try {
       this.app = getApps().length === 0 ? initializeApp(config) : getApp();
       this.auth = getAuth(this.app);
       this.firestore = getFirestore(this.app);
       this.isConfigured = true;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      if (saveToStorage) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      }
       return true;
     } catch (err) {
       console.error('Firebase init failed:', err);
@@ -106,17 +126,24 @@ class FirebaseService {
   /**
    * 현재 저장된 설정 반환
    */
-  public getConfig(): FirebaseConfig | null {
+  public getConfig(): FirebaseConfig {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
+    return saved ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
   }
 
   /**
    * Google OAuth 팝업 로그인
    */
   public async loginWithGoogle(): Promise<FirebaseUser | null> {
+    if (!this.auth) {
+      this.initApp(DEFAULT_FIREBASE_CONFIG);
+    }
     if (!this.auth) throw new Error('Firebase Auth가 초기화되지 않았습니다.');
+    
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
     const result = await signInWithPopup(this.auth, provider);
     return result.user;
   }
@@ -140,77 +167,152 @@ class FirebaseService {
 
   /**
    * =========================================================================
+   * 즉시 클라우드 동기화 헬퍼 (Direct Firestore Writes)
+   * Firestore는 undefined 필드를 허용하지 않으므로 cleanForFirestore로 정제
+   * =========================================================================
+   */
+  private cleanData<T>(data: T): T {
+    return JSON.parse(JSON.stringify(data));
+  }
+
+  public async saveGatheringToCloud(gathering: Gathering): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'gatherings', gathering.id);
+      await setDoc(ref, this.cleanData(gathering), { merge: true });
+    } catch (err) {
+      console.warn('Firebase saveGatheringToCloud skipped:', err);
+    }
+  }
+
+  public async saveRsvpToCloud(rsvp: GatheringRSVP): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'rsvps', rsvp.id);
+      await setDoc(ref, this.cleanData(rsvp), { merge: true });
+    } catch (err) {
+      console.warn('Firebase saveRsvpToCloud skipped:', err);
+    }
+  }
+
+
+  public async saveReviewToCloud(review: GatheringReview): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'reviews', review.id);
+      await setDoc(ref, this.cleanData(review), { merge: true });
+    } catch (err) {
+      console.warn('Firebase saveReviewToCloud skipped:', err);
+    }
+  }
+
+  public async deleteReviewFromCloud(reviewId: string): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'reviews', reviewId);
+      await deleteDoc(ref);
+    } catch (err) {
+      console.warn('Firebase deleteReviewFromCloud skipped:', err);
+    }
+  }
+
+  /**
+   * =========================================================================
    * Local-First Delta Sync Engine (IndexedDB <-> Firestore 증분 동기화)
-   * 서버 읽기 비용 0원에 근접하도록 변경된 레코드만 타겟 동기화
+   * 모임, 상세 집결위치(locationPresets), RSVP, 후기(reviews) 전체 증분 동기화
    * =========================================================================
    */
   public async syncDelta(): Promise<{ pushed: number; pulled: number }> {
     if (!this.firestore) throw new Error('Firestore가 연결되지 않았습니다.');
 
-    const meta = await db.syncMeta.get('lastSyncTimestamp');
-    const lastSync = meta ? meta.value : '1970-01-01T00:00:00.000Z';
     const now = new Date().toISOString();
 
     let pushedCount = 0;
     let pulledCount = 0;
 
-    // 1. PUSH: 로컬에서 lastSync 이후 수정된 모임들을 서버로 전송
-    const localUpdatedGatherings = await db.gatherings
-      .where('updatedAt')
-      .above(lastSync)
-      .toArray();
-
-    if (localUpdatedGatherings.length > 0) {
+    // 1. GATHERINGS: 로컬의 활성 모임(isDeleted가 아닌 것)을 서버로 PUSH
+    const allLocalGatherings = await db.gatherings.toArray();
+    const activeLocalGatherings = allLocalGatherings.filter((g) => !g.isDeleted);
+    if (activeLocalGatherings.length > 0) {
       const batch = writeBatch(this.firestore);
-      for (const g of localUpdatedGatherings) {
+      for (const g of activeLocalGatherings) {
         const ref = doc(this.firestore, 'gatherings', g.id);
-        batch.set(ref, g, { merge: true });
+        batch.set(ref, this.cleanData(g), { merge: true });
         pushedCount++;
       }
       await batch.commit();
     }
 
-    // 2. PULL: 서버에서 lastSync 이후 변경된 모임들을 가져와 로컬 IndexedDB에 반영
-    const gatheringsQuery = query(
-      collection(this.firestore, 'gatherings'),
-      where('updatedAt', '>', lastSync)
-    );
-    const serverGatheringsSnap = await getDocs(gatheringsQuery);
-    if (!serverGatheringsSnap.empty) {
+    // 2. GATHERINGS: 서버 -> 로컬 PULL (서버의 실제 모임 목록으로 로컬 IndexedDB 정규화)
+    try {
+      const serverGatheringsSnap = await getDocs(collection(this.firestore, 'gatherings'));
       const serverGatherings = serverGatheringsSnap.docs.map((d) => d.data() as Gathering);
-      await db.gatherings.bulkPut(serverGatherings);
-      pulledCount += serverGatherings.length;
+      const serverIds = new Set(serverGatherings.map((g) => g.id));
+
+      // 서버에 없는 모임 또는 삭제된 더미 모임은 로컬에서도 정리
+      for (const lg of allLocalGatherings) {
+        if (lg.isDeleted || (!serverIds.has(lg.id) && (lg.id.startsWith('gat_2026_') || lg.id.startsWith('gat_dummy_')))) {
+          await db.gatherings.delete(lg.id);
+        }
+      }
+
+      if (serverGatherings.length > 0) {
+        await db.gatherings.bulkPut(serverGatherings);
+        pulledCount += serverGatherings.length;
+      }
+    } catch (e) {
+      console.warn('gatherings pull skipped or failed:', e);
     }
 
-    // 3. PUSH: 로컬에서 lastSync 이후 수정된 RSVP 전송
-    const localUpdatedRsvps = await db.rsvps
-      .where('updatedAt')
-      .above(lastSync)
-      .toArray();
+    // 3. RSVPS: 로컬 -> 서버 PUSH
 
-    if (localUpdatedRsvps.length > 0) {
+    const localRsvps = await db.rsvps.toArray();
+    if (localRsvps.length > 0) {
       const batch = writeBatch(this.firestore);
-      for (const r of localUpdatedRsvps) {
+      for (const r of localRsvps) {
         const ref = doc(this.firestore, 'rsvps', r.id);
-        batch.set(ref, r, { merge: true });
+        batch.set(ref, this.cleanData(r), { merge: true });
         pushedCount++;
       }
       await batch.commit();
     }
 
-    // 4. PULL: 서버 RSVP 동기화
-    const rsvpsQuery = query(
-      collection(this.firestore, 'rsvps'),
-      where('updatedAt', '>', lastSync)
-    );
-    const serverRsvpsSnap = await getDocs(rsvpsQuery);
-    if (!serverRsvpsSnap.empty) {
-      const serverRsvps = serverRsvpsSnap.docs.map((d) => d.data() as GatheringRSVP);
-      await db.rsvps.bulkPut(serverRsvps);
-      pulledCount += serverRsvps.length;
+    // 6. RSVPS: 서버 -> 로컬 PULL
+    try {
+      const serverRsvpsSnap = await getDocs(collection(this.firestore, 'rsvps'));
+      if (!serverRsvpsSnap.empty) {
+        const serverRsvps = serverRsvpsSnap.docs.map((d) => d.data() as GatheringRSVP);
+        await db.rsvps.bulkPut(serverRsvps);
+        pulledCount += serverRsvps.length;
+      }
+    } catch (e) {
+      console.warn('rsvps pull skipped or failed:', e);
     }
 
-    // 5. 동기화 타임스탬프 갱신
+    // 7. REVIEWS: 로컬 -> 서버 PUSH & 서버 -> 로컬 PULL
+    const localReviews = await db.reviews.toArray();
+    if (localReviews.length > 0) {
+      const batch = writeBatch(this.firestore);
+      for (const rev of localReviews) {
+        const ref = doc(this.firestore, 'reviews', rev.id);
+        batch.set(ref, this.cleanData(rev), { merge: true });
+        pushedCount++;
+      }
+      await batch.commit();
+    }
+
+    try {
+      const serverReviewsSnap = await getDocs(collection(this.firestore, 'reviews'));
+      if (!serverReviewsSnap.empty) {
+        const serverReviews = serverReviewsSnap.docs.map((d) => d.data() as GatheringReview);
+        await db.reviews.bulkPut(serverReviews);
+        pulledCount += serverReviews.length;
+      }
+    } catch (e) {
+      console.warn('reviews pull skipped:', e);
+    }
+
+    // 8. 동기화 타임스탬프 갱신
     await db.syncMeta.put({
       key: 'lastSyncTimestamp',
       value: now,
@@ -218,6 +320,9 @@ class FirebaseService {
 
     return { pushed: pushedCount, pulled: pulledCount };
   }
+
+
 }
 
 export const firebaseService = new FirebaseService();
+

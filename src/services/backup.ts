@@ -1,10 +1,9 @@
 import { db } from './db';
-import { Gathering, GatheringRSVP, GatheringReview, POI, UserProfile } from '../types';
+import { Gathering, GatheringRSVP, GatheringReview, UserProfile } from '../types';
 
 export interface BackupData {
   version: number;
   exportedAt: string;
-  pois: POI[];
   gatherings: Gathering[];
   rsvps: GatheringRSVP[];
   reviews: GatheringReview[];
@@ -15,8 +14,7 @@ export interface BackupData {
  * IndexedDB의 모든 데이터를 JSON 파일로 다운로드 (Export)
  */
 export async function exportDatabaseToJson(): Promise<void> {
-  const [pois, gatherings, rsvps, reviews, users] = await Promise.all([
-    db.pois.toArray(),
+  const [gatherings, rsvps, reviews, users] = await Promise.all([
     db.gatherings.toArray(),
     db.rsvps.toArray(),
     db.reviews.toArray(),
@@ -24,9 +22,8 @@ export async function exportDatabaseToJson(): Promise<void> {
   ]);
 
   const backupData: BackupData = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
-    pois,
     gatherings,
     rsvps,
     reviews,
@@ -55,18 +52,16 @@ export async function importDatabaseFromJson(file: File): Promise<{ success: boo
     const text = await file.text();
     const data: BackupData = JSON.parse(text);
 
-    if (!data.pois || !data.gatherings) {
+    if (!data.gatherings) {
       throw new Error('유효하지 않은 해풍단 백업 파일 형식입니다.');
     }
 
-    await db.transaction('rw', [db.pois, db.gatherings, db.rsvps, db.reviews, db.users, db.syncMeta], async () => {
-      await db.pois.clear();
+    await db.transaction('rw', [db.gatherings, db.rsvps, db.reviews, db.users, db.syncMeta], async () => {
       await db.gatherings.clear();
       await db.rsvps.clear();
       await db.reviews.clear();
       await db.users.clear();
 
-      if (data.pois.length > 0) await db.pois.bulkAdd(data.pois);
       if (data.gatherings.length > 0) await db.gatherings.bulkAdd(data.gatherings);
       if (data.rsvps && data.rsvps.length > 0) await db.rsvps.bulkAdd(data.rsvps);
       if (data.reviews && data.reviews.length > 0) await db.reviews.bulkAdd(data.reviews);
@@ -78,7 +73,7 @@ export async function importDatabaseFromJson(file: File): Promise<{ success: boo
       });
     });
 
-    return { success: true, message: `성공적으로 데이터를 복원했습니다. (모임 ${data.gatherings.length}건, POI ${data.pois.length}건)` };
+    return { success: true, message: `성공적으로 데이터를 복원했습니다. (모임 ${data.gatherings.length}건)` };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.';
     return { success: false, message: `백업 파일 복구 실패: ${message}` };
