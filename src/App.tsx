@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './services/db';
-import { Gathering, GatheringRSVP, GatheringReview, LocationPosition, POI, RSVPStatus } from './types';
+import { Gathering, LocationPosition, POI, RSVPStatus, GatheringStatus } from './types';
 import { TopBar } from './components/layout/TopBar';
 import { Sidebar } from './components/layout/Sidebar';
 import { MapViewer, MapViewerRef } from './components/MapViewer';
@@ -82,51 +82,38 @@ export const App: React.FC = () => {
   // RSVP 응답 갱신
   const handleUpdateRsvp = async (gatheringId: string, status: RSVPStatus, comment?: string) => {
     if (!currentUser) return;
-    const rsvpId = `${gatheringId}_${currentUser.uid}`;
-    const now = new Date().toISOString();
-
-    const rsvpData: GatheringRSVP = {
-      id: rsvpId,
+    await db.submitRsvp(
       gatheringId,
-      userId: currentUser.uid,
-      userName: currentUser.displayName,
-      userPhotoUrl: currentUser.photoURL,
+      currentUser.uid,
+      currentUser.displayName,
+      currentUser.photoURL,
       status,
-      comment: comment || undefined,
-      updatedAt: now,
-    };
-
-    await db.rsvps.put(rsvpData);
+      comment
+    );
   };
 
-  // 후기 등록
-  const handleAddReview = async (gatheringId: string, content: string, rating: number) => {
+  // 후기 등록 (사진 WebP 배열 포함)
+  const handleAddReview = async (gatheringId: string, content: string, rating: number, images?: string[]) => {
     if (!currentUser) return;
-    const reviewId = `rev_${Date.now()}`;
-    const now = new Date().toISOString();
-
-    const reviewData: GatheringReview = {
-      id: reviewId,
+    await db.addReview({
       gatheringId,
       userId: currentUser.uid,
       userName: currentUser.displayName,
-      userPhotoUrl: currentUser.photoURL,
+      userAvatar: currentUser.photoURL,
       content,
       rating,
-      photos: [],
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    await db.reviews.add(reviewData);
+      images: images || [],
+    });
   };
 
-  // 모임 상태 변경 (관리자)
-  const handleUpdateStatus = async (gatheringId: string, newStatus: Gathering['status']) => {
-    await db.gatherings.update(gatheringId, {
-      status: newStatus,
-      updatedAt: new Date().toISOString(),
-    });
+  // 후기 삭제
+  const handleDeleteReview = async (reviewId: string, gatheringId: string) => {
+    await db.deleteReview(reviewId, gatheringId);
+  };
+
+  // 모임 상태 변경
+  const handleUpdateStatus = async (gatheringId: string, newStatus: GatheringStatus) => {
+    await db.updateGatheringStatus(gatheringId, newStatus);
     if (selectedGathering && selectedGathering.id === gatheringId) {
       setSelectedGathering({
         ...selectedGathering,
@@ -135,16 +122,13 @@ export const App: React.FC = () => {
     }
   };
 
-  // 모임 삭제 (관리자)
+  // 모임 삭제 (Soft Delete)
   const handleDeleteGathering = async (gatheringId: string) => {
-    await db.gatherings.update(gatheringId, {
-      isDeleted: true,
-      updatedAt: new Date().toISOString(),
-    });
+    await db.softDeleteGathering(gatheringId);
     setSelectedGathering(null);
   };
 
-  // 선택된 모임의 RSVP 및 후기 필터링
+  // 선택된 모임의 RSVP 및 후기 실시간 필터링
   const selectedGatheringRsvps = selectedGathering
     ? allRsvps.filter((r) => r.gatheringId === selectedGathering.id)
     : [];
@@ -220,6 +204,7 @@ export const App: React.FC = () => {
           onClose={() => setSelectedGathering(null)}
           onUpdateRsvp={handleUpdateRsvp}
           onAddReview={handleAddReview}
+          onDeleteReview={handleDeleteReview}
           onUpdateStatus={handleUpdateStatus}
           onDeleteGathering={handleDeleteGathering}
         />

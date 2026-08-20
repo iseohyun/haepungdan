@@ -186,27 +186,27 @@ export interface UserProfile {
 
 ### Milestone 2: 거제 지도(`map.jpg`) 뷰어 & GIS 엔진 & 캘린더 위젯 (2단계)
 * **세부 과제**:
-  - [ ] `public/map.jpg` 에셋 로딩 및 줌/팬(Zoom & Pan, 마우스 휠/터치 드래그) 캔버스 구현
-  - [ ] Bounding Box 기반 GPS $\leftrightarrow$ 백분율 좌표 변환 유틸리티 함수 및 테스트 작성
-  - [ ] 지도 위 핀(Marker) 오버레이 렌더링 (모임 상태별 배지 및 펄스 애니메이션)
-  - [ ] 지도 클릭 시 좌표 자동 취득 및 카카오맵/네이버지도 길찾기 연동 링크 생성
-  - [ ] 좌상단 플로팅 캘린더 위젯 개발 (일정 있는 날짜 하이라이트 및 맵 포커스 연동)
+  - [x] `public/map.jpg` 에셋 로딩 및 줌/팬(Zoom & Pan, 마우스 휠/터치 드래그, 100% 밀착, 1:1 드래그 동기화, 엄격 경계 구속) 캔버스 구현
+  - [x] Bounding Box 기반 GPS $\leftrightarrow$ 백분율 좌표 변환 유틸리티 함수 및 테스트 작성
+  - [x] 지도 위 핀(Marker) 오버레이 렌더링 (모임 상태별 배지 및 펄스 애니메이션)
+  - [x] 지도 클릭 시 좌표 자동 취득 및 카카오맵/네이버지도/T맵 길찾기 연동 링크 생성
+  - [x] 좌상단 플로팅 캘린더 위젯 개발 (일정 있는 날짜 하이라이트 및 맵 포커스 연동)
 
 ### Milestone 3: 모임 라이프사이클 관리 & 참여 응답(RSVP) (3단계)
 * **목표**: 모임 제안, 생성/수정, 정회원 참여 응답(RSVP), 데이터 변경분 감지 로직
 * **세부 과제**:
-  - [ ] 모임 개설 모달 (지도 클릭 핀 지정 + 일시 + 제안서 입력)
-  - [ ] 모임 상태 전이 관리 (`PROPOSED` $\rightarrow$ `RECRUITING` $\rightarrow$ `CONFIRMED` $\rightarrow$ `COMPLETED`)
-  - [ ] 정회원 RSVP 인터랙션 (참석/불참/미정 버튼 + 코멘트 + 실시간 집계)
-  - [ ] 비로그인/게스트 접근 제한 가드(안내 팝업 및 권한 안내)
+  - [x] 모임 개설 모달 (지도 클릭 핀 지정 + 일시 + 제안서 입력 + POI 퀵선택)
+  - [x] 모임 상태 전이 관리 (`PROPOSED` $\rightarrow$ `RECRUITING` $\rightarrow$ `CONFIRMED` $\rightarrow$ `COMPLETED` $\rightarrow$ `CANCELLED`)
+  - [x] 정회원 RSVP 인터랙션 (참석/불참/미정 버튼 + 코멘트 + 실시간 집계)
+  - [x] 비로그인/게스트 접근 제한 가드(안내 팝업 및 권한 안내)
 
 ### Milestone 4: 참여 후기, 갤러리 & 비디오 아카이빙 (4단계)
 * **목표**: 모임 완료 후 사진 업로드, 갤러리 뷰어, YouTube 동영상 임베드
 * **세부 과제**:
-  - [ ] 모임 상세 사이드 드로어 / 모달 UI (제안서 / 참석자 목록 / 후기 탭)
-  - [ ] 클라이언트 이미지 WebP 압축 및 로컬/스토리지 업로드 파이프라인
-  - [ ] 모임별 사진 갤러리(Lightbox/슬라이드 뷰) 및 썸네일 그리드
-  - [ ] YouTube / Shorts URL 입력 시 반응형 임베드 플레이어 렌더링
+  - [x] 모임 상세 모달 UI (모임 정보 / 참석자 목록 / 후기 & 갤러리 탭)
+  - [x] 클라이언트 이미지 WebP 압축 및 로컬 업로드 파이프라인 (`imageCompressor.ts`)
+  - [x] 모임별 사진 갤러리(Lightbox/슬라이드 뷰) 및 썸네일 그리드 (`MediaGallery.tsx`)
+  - [x] YouTube / Shorts URL 입력 시 반응형 임베드 플레이어 렌더링 (`VideoPlayerEmbed.tsx`)
 
 ### Milestone 5: Firebase 어댑터 연동, 관리자 도구 & 배포 (5단계)
 * **목표**: Firebase Auth(Google 로그인) 및 Firestore/Storage 플러그인 연동, 관리자 승인 UI, GitHub Actions 배포

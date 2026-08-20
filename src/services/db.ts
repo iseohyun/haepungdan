@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { Gathering, GatheringRSVP, GatheringReview, POI, SyncMetadata, UserProfile } from '../types';
+import { Gathering, GatheringRSVP, GatheringReview, POI, SyncMetadata, UserProfile, GatheringStatus, RSVPStatus } from '../types';
 import { INITIAL_GATHERINGS, INITIAL_POIS, MOCK_USERS } from '../data/initialData';
 
 export class HaepungdanDatabase extends Dexie {
@@ -49,6 +49,103 @@ export class HaepungdanDatabase extends Dexie {
         value: new Date().toISOString(),
       });
     }
+  }
+
+  /**
+   * 모임 상태 전이 업데이트
+   */
+  async updateGatheringStatus(gatheringId: string, newStatus: GatheringStatus): Promise<void> {
+    await this.gatherings.update(gatheringId, {
+      status: newStatus,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * 모임 삭제 (Local-First 캐시 동기화를 위한 Soft Delete)
+   */
+  async softDeleteGathering(gatheringId: string): Promise<void> {
+    await this.gatherings.update(gatheringId, {
+      isDeleted: true,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * RSVP 참여 응답 제출 또는 갱신
+   */
+  async submitRsvp(
+    gatheringId: string,
+    userId: string,
+    userName: string,
+    userAvatar: string | undefined,
+    status: RSVPStatus,
+    comment?: string
+  ): Promise<void> {
+    const existing = await this.rsvps
+      .where({ gatheringId, userId })
+      .first();
+
+    const now = new Date().toISOString();
+
+    if (existing) {
+      await this.rsvps.update(existing.id, {
+        status,
+        comment: comment !== undefined ? comment : existing.comment,
+        userName,
+        userAvatar,
+        updatedAt: now,
+      });
+    } else {
+      const newRsvp: GatheringRSVP = {
+        id: `rsvp_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        gatheringId,
+        userId,
+        userName,
+        userAvatar,
+        status,
+        comment: comment || '',
+        updatedAt: now,
+      };
+      await this.rsvps.add(newRsvp);
+    }
+
+    // 모임의 updatedAt 갱신
+    await this.gatherings.update(gatheringId, {
+      updatedAt: now,
+    });
+  }
+
+  /**
+   * 모임 후기 등록
+   */
+  async addReview(reviewData: Omit<GatheringReview, 'id' | 'createdAt' | 'updatedAt'>): Promise<GatheringReview> {
+    const now = new Date().toISOString();
+    const newReview: GatheringReview = {
+      ...reviewData,
+      id: `rev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.reviews.add(newReview);
+
+    // 모임의 updatedAt 갱신
+    await this.gatherings.update(reviewData.gatheringId, {
+      updatedAt: now,
+    });
+
+    return newReview;
+  }
+
+  /**
+   * 모임 후기 삭제
+   */
+  async deleteReview(reviewId: string, gatheringId: string): Promise<void> {
+    await this.reviews.delete(reviewId);
+    await this.gatherings.update(gatheringId, {
+      updatedAt: new Date().toISOString(),
+    });
   }
 }
 

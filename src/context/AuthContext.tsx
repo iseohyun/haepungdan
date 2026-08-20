@@ -6,6 +6,7 @@ interface AuthContextType {
   currentUser: UserProfile | null;
   currentRole: UserRole;
   isLoggedIn: boolean;
+  isAdmin: boolean;              // 관리자 여부
   canCreateGathering: boolean;   // 관리자만
   canProposeGathering: boolean;  // 정회원 이상
   canRSVP: boolean;              // 정회원 이상
@@ -28,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const currentRole: UserRole = currentUser ? currentUser.role : 'UNAUTHENTICATED';
   const isLoggedIn = currentUser !== null;
+  const isAdmin = currentRole === 'ADMIN';
 
   const canCreateGathering = currentRole === 'ADMIN';
   const canProposeGathering = currentRole === 'MEMBER' || currentRole === 'ADMIN';
@@ -60,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         currentRole,
         isLoggedIn,
+        isAdmin,
         canCreateGathering,
         canProposeGathering,
         canRSVP,

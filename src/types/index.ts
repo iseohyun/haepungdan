@@ -31,12 +31,12 @@ export interface Gathering {
   locationName: string;        // 장소명 (예: "구조라해수욕장")
   locationDetail?: string;     // 상세 주소 / 집결 장소
   position: LocationPosition;  // 지도 오버레이 및 GPS 위치
-  proposal: {
-    description: string;       // 기획 내용 / 활동 계획
-    budgetEstimate?: number;   // 예상 회비/예산 (원)
-    preparationNotes?: string; // 준비물 / 주의사항
-  };
-  videoUrls: string[];         // YouTube 등 비디오 링크
+  description: string;         // 모임 설명 및 계획
+  fee?: number;                // 참가비 (원, 0=무료)
+  maxParticipants?: number;    // 최대 참가 정원
+  thumbnailUrl?: string;       // 대표 썸네일 이미지 (WebP Data URL)
+  videoUrl?: string;           // YouTube 영상 또는 Shorts 링크
+  videoUrls?: string[];        // 추가 비디오 링크들
   createdBy: string;           // 작성자 UID
   createdByName: string;       // 작성자 이름
   createdAt: string;           // 생성 일시
@@ -52,6 +52,7 @@ export interface GatheringRSVP {
   gatheringId: string;
   userId: string;
   userName: string;
+  userAvatar?: string;
   userPhotoUrl?: string;
   status: RSVPStatus;
   comment?: string;
@@ -64,10 +65,12 @@ export interface GatheringReview {
   gatheringId: string;
   userId: string;
   userName: string;
+  userAvatar?: string;
   userPhotoUrl?: string;
   content: string;
-  rating?: number;             // 1 ~ 5점
-  photos: {
+  rating: number;              // 1 ~ 5점
+  images?: string[];           // WebP Data URL 배열
+  photos?: {
     url: string;
     thumbnailUrl?: string;
     caption?: string;
