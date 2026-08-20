@@ -7,5 +7,14 @@ export default defineConfig({
   base: '/haepungdan/',
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'dexie-vendor': ['dexie', 'dexie-react-hooks'],
+          'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+        },
+      },
+    },
   },
 });

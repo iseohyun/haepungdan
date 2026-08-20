@@ -211,7 +211,7 @@ export interface UserProfile {
 ### Milestone 5: Firebase 어댑터 연동, 관리자 도구 & 배포 (5단계)
 * **목표**: Firebase Auth(Google 로그인) 및 Firestore/Storage 플러그인 연동, 관리자 승인 UI, GitHub Actions 배포
 * **세부 과제**:
-  - [ ] Firebase 설정 모달/환경변수 주입 레이어 (키 입력 시 클라우드 동기화 활성화)
-  - [ ] Google OAuth 로그인 및 사용자 Role 승인 관리자 페이지
-  - [ ] 로컬 전체 데이터 JSON 다운로드(Export) 및 복구(Import) 백업 도구
-  - [ ] GitHub Actions 워크플로우를 통한 GitHub Pages 자동 빌드 & 배포 파이프라인 구축
+  - [x] Firebase 설정 모달/환경변수 주입 레이어 (`firebase.ts`, `FirebaseConfigModal.tsx` 키 입력 시 클라우드 동기화 활성화)
+  - [x] Google OAuth 로그인 및 사용자 Role 승인 관리자 페이지 (`AdminManagementModal.tsx`)
+  - [x] 로컬 전체 데이터 JSON 다운로드(Export) 및 복구(Import) 백업 도구 (`backup.ts`)
+  - [x] GitHub Actions 워크플로우를 통한 GitHub Pages 자동 빌드 & 배포 파이프라인 구축 (`.github/workflows/deploy.yml`)

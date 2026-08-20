@@ -8,6 +8,8 @@ import { MapViewer, MapViewerRef } from './components/MapViewer';
 import { CalendarWidget } from './components/CalendarWidget';
 import { GatheringDetailModal } from './components/GatheringDetailModal';
 import { CreateGatheringModal } from './components/CreateGatheringModal';
+import { AdminManagementModal } from './components/admin/AdminManagementModal';
+import { FirebaseConfigModal } from './components/admin/FirebaseConfigModal';
 import { useAuth } from './context/AuthContext';
 
 export const App: React.FC = () => {
@@ -27,6 +29,8 @@ export const App: React.FC = () => {
 
   const [selectedGathering, setSelectedGathering] = useState<Gathering | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isPickingLocation, setIsPickingLocation] = useState(false);
   const [pickedLocation, setPickedLocation] = useState<LocationPosition | null>(null);
 
@@ -163,6 +167,8 @@ export const App: React.FC = () => {
         onFocusCoordinate={handleFocusCoordinate}
         onResetMapView={handleResetMapView}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
+        onOpenAdminModal={() => setIsAdminModalOpen(true)}
+        onOpenFirebaseConfig={() => setIsFirebaseModalOpen(true)}
         isCalendarOpen={isCalendarOpen}
         onToggleCalendar={() => setIsCalendarOpen(!isCalendarOpen)}
         showPois={showPois}
@@ -218,6 +224,27 @@ export const App: React.FC = () => {
           onStartPickingLocation={handleStartPickingLocation}
           onClose={() => setIsCreateModalOpen(false)}
           onCreate={handleCreateGathering}
+        />
+      )}
+
+      {/* 7. 관리자 센터 (회원 승인 / 권한 관리 / 백업) 모달 */}
+      {isAdminModalOpen && (
+        <AdminManagementModal
+          onClose={() => setIsAdminModalOpen(false)}
+          onOpenFirebaseConfig={() => {
+            setIsAdminModalOpen(false);
+            setIsFirebaseModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* 8. Firebase 클라우드 연동 및 수동 동기화 모달 */}
+      {isFirebaseModalOpen && (
+        <FirebaseConfigModal
+          onClose={() => setIsFirebaseModalOpen(false)}
+          onConfigChanged={() => {
+            // 트리거 리렌더
+          }}
         />
       )}
     </div>
