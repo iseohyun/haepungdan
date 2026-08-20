@@ -1,5 +1,23 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.2.0] - 2026-08-21
+### 신규 기능 및 개선 사항 (글자 제거 클린 지도, Firebase 하이브리드 연동, 관리자 센터 회원 승인제, 번들 최적화)
+- **한글 정보가 완전 제거된 고해상도 클린 지도(`public/map.jpg`) 리디자인 & 기존 원본 백업(`public/map.bak`)**:
+  - 기존 거제도 지도의 화사한 파스텔 지형 색감, 해안선 굴곡, 부속 섬, 도로망 스타일을 100% 온전하게 보존하면서 한글 지명(`거제시`, `통영시`, `사등면`, `옥포항`, `외도` 등)과 도로 번호 라벨을 완벽하게 제거.
+  - 소모임 핀 마커 및 POI 레이어의 시인성과 지도 가독성을 극대화하고 기존 GIS Bounding Box 좌표 변환 공식과의 1:1 완벽 정합 유지.
+- **하이브리드 Firebase & Delta Sync 어댑터 엔진 구축 (`src/services/firebase.ts`)**:
+  - Firebase 설정이 없는 기본 상태에서는 **100% 로컬 IndexedDB 모드**로 작동하여 네트워크/API 키 없이도 모든 기능이 안정적으로 동작.
+  - Firebase 연동 시 Google OAuth 팝업 로그인 활성화 및 로컬 IndexedDB와 Firestore 간 `updatedAt` 기반 **증분 동기화(Delta Sync)**를 수행하여 서버 읽기 비용 0원 유지.
+- **Firebase 클라우드 연동 및 수동 동기화 모달 개발 (`src/components/admin/FirebaseConfigModal.tsx`)**:
+  - Firebase 웹 앱 키(`apiKey`, `projectId`, `authDomain` 등)를 브라우저 UI에서 직접 입력/저장/해제할 수 있는 연동 제어창 구현.
+  - 실시간 클라우드 연결 상태 인디케이터(🟢 연결됨 / 💻 로컬 모드) 및 "즉시 동기화" 기능 탑재.
+- **해풍단 관리자 센터 (Admin Hub) 회원 승인제 구축 (`src/components/admin/AdminManagementModal.tsx`)**:
+  - 가입 대기 회원(GUEST) $\rightarrow$ 정회원(MEMBER) 원클릭 승인, 정회원 $\rightarrow$ 관리자(ADMIN) 임명 등 역할 기반 권한 제어 UI 구현.
+  - IndexedDB 전체 데이터를 손실 없이 원클릭으로 JSON 내보내기(Export) 및 가져오기(Import) 복구할 수 있는 빠른 백업 도구 통합.
+- **Vite 번들 청크 분할 및 로딩 성능 최적화 (`vite.config.ts`)**:
+  - `manualChunks` 설정을 통해 `react-vendor`, `dexie-vendor`, `firebase-vendor` 청크를 분리.
+  - 메인 애플리케이션 번들(`index.js`) 용량을 **133 kB (Gzip 압축 시 34 kB)**로 대폭 경량화하여 초기 진입 속도 획기적 개선.
+
 ## [v0.1.1] - 2026-08-20
 ### 신규 기능 및 개선 사항 (거제 GIS 엔진, 100vh 뷰어 & 95vw 사이드바, WebP 압축, YouTube 임베드, RSVP & 후기 갤러리)
 - **거제도 정적 지도(`public/map.jpg`) GIS $\leftrightarrow$ 백분율 좌표 변환 엔진 구축 (`src/utils/coordinates.ts`)**:
