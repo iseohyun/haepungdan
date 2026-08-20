@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 import { Gathering, LocationPosition, POI } from '../types';
 import { percentToGps, createLocationFromPercent } from '../utils/coordinates';
@@ -46,52 +46,126 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
 
   const [cursorGps, setCursorGps] = useState<{ lat: number; lng: number; x_pct: number; y_pct: number } | null>(null);
 
-  // Panzoom 초기화
+  // 세로축(Height 100vh) 또는 가로축을 여백 없이 100% 꽉 채우는 최적 Fit Scale 계산
+  const getFitScale = useCallback(() => {
+    if (!containerRef.current) return 1.0;
+    const { clientWidth, clientHeight } = containerRef.current;
+    if (clientWidth === 0 || clientHeight === 0) return 1.0;
+
+    const scaleX = clientWidth / 701;
+    const scaleY = clientHeight / 820;
+
+    return Math.min(scaleX, scaleY);
+  }, []);
+
+  // 전체 지도 보기로 리셋 (정중앙 0,0 및 상하 밀착)
+  const resetToFit = useCallback(() => {
+    if (!panzoomInstanceRef.current) return;
+    const fitScale = getFitScale();
+
+    panzoomInstanceRef.current.setOptions({ minScale: fitScale });
+    panzoomInstanceRef.current.zoom(fitScale, { animate: true });
+    setTimeout(() => {
+      panzoomInstanceRef.current?.pan(0, 0, { animate: true });
+    }, 50);
+  }, [getFitScale]);
+
+  // Panzoom 초기화 및 1:1 마우스 동기화 + 정밀 상하좌우 경계 구속
   useEffect(() => {
-    if (!mapElementRef.current) return;
+    if (!mapElementRef.current || !containerRef.current) return;
+
+    const fitScale = getFitScale();
 
     const panzoom = Panzoom(mapElementRef.current, {
-      maxScale: 4.5,
-      minScale: 0.8,
-      contain: 'outside',
-      startScale: 1.0,
+      maxScale: 5.0,
+      minScale: fitScale,
+      startScale: fitScale,
+      startX: 0,
+      startY: 0,
       cursor: isPickingLocation ? 'crosshair' : 'grab',
+      canvas: true,
+      // 1:1 마우스 드래그 속도 일치 및 정밀 경계 이탈 방지
+      setTransform: (elem, { scale, x, y }) => {
+        if (!containerRef.current) {
+          elem.style.transform = `scale(${scale}) translate(${x}px, ${y}px)`;
+          return;
+        }
+
+        const containerW = containerRef.current.clientWidth;
+        const containerH = containerRef.current.clientHeight;
+
+        // X축 경계 구속 (지도가 화면보다 클 때만 이동 허용, 작으면 0 고정)
+        let clampedX = x;
+        if (701 * scale > containerW) {
+          const maxAllowedX = (701 - containerW / scale) / 2;
+          clampedX = Math.max(-maxAllowedX, Math.min(maxAllowedX, x));
+        } else {
+          clampedX = 0;
+        }
+
+        // Y축 경계 구속 (지도가 화면보다 클 때만 이동 허용, 작으면 0 고정)
+        let clampedY = y;
+        if (820 * scale > containerH) {
+          const maxAllowedY = (820 - containerH / scale) / 2;
+          clampedY = Math.max(-maxAllowedY, Math.min(maxAllowedY, y));
+        } else {
+          clampedY = 0;
+        }
+
+        elem.style.transform = `scale(${scale}) translate(${clampedX}px, ${clampedY}px)`;
+      },
     });
 
     panzoomInstanceRef.current = panzoom;
 
-    const elem = mapElementRef.current;
-    const parent = elem.parentElement;
+    const parent = mapElementRef.current.parentElement;
 
     const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
       panzoom.zoomWithWheel(e);
     };
 
-    parent?.addEventListener('wheel', onWheel);
+    parent?.addEventListener('wheel', onWheel, { passive: false });
+
+    // 초기 화면 중앙 맞춤
+    const timer = setTimeout(() => {
+      resetToFit();
+    }, 80);
+
+    // 윈도우 리사이즈 시 화면 맞춤 및 minScale 갱신
+    const handleResize = () => {
+      if (panzoomInstanceRef.current) {
+        const newFit = getFitScale();
+        panzoomInstanceRef.current.setOptions({ minScale: newFit });
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
 
     return () => {
+      clearTimeout(timer);
       parent?.removeEventListener('wheel', onWheel);
+      window.removeEventListener('resize', handleResize);
       panzoom.destroy();
     };
-  }, [isPickingLocation]);
+  }, [isPickingLocation, getFitScale, resetToFit]);
 
   // 외부에서 특정 좌표로 포커스 이동할 수 있도록 ImperativeHandle 제공
   useImperativeHandle(ref, () => ({
-    focusCoordinate: (x_pct: number, y_pct: number, scale = 2.0) => {
-      if (!panzoomInstanceRef.current || !containerRef.current) return;
-      const containerRect = containerRef.current.getBoundingClientRect();
+    focusCoordinate: (x_pct: number, y_pct: number, targetScale = 2.2) => {
+      if (!panzoomInstanceRef.current) return;
 
-      // 컨테이너 중심 기준으로 지도 이동
-      const targetX = -(x_pct / 100) * 701 * scale + containerRect.width / 2;
-      const targetY = -(y_pct / 100) * 820 * scale + containerRect.height / 2;
+      // 중앙(50%, 50%) 기준 오프셋 계산
+      const targetX = ((50 - x_pct) / 100) * 701;
+      const targetY = ((50 - y_pct) / 100) * 820;
 
-      panzoomInstanceRef.current.zoom(scale, { animate: true });
+      panzoomInstanceRef.current.zoom(targetScale, { animate: true });
       setTimeout(() => {
         panzoomInstanceRef.current?.pan(targetX, targetY, { animate: true });
-      }, 100);
+      }, 80);
     },
     resetView: () => {
-      panzoomInstanceRef.current?.reset();
+      resetToFit();
     },
   }));
 
@@ -132,12 +206,12 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       ref={containerRef}
       className="relative w-full h-full bg-slate-950 overflow-hidden flex items-center justify-center select-none"
     >
-      {/* 지도 캔버스 영역 (Panzoom 적용) */}
+      {/* 지도 캔버스 영역 (Panzoom 기본 transform-origin: 50% 50% 적용) */}
       <div
         ref={mapElementRef}
         onMouseMove={handleMouseMove}
         onClick={handleMapClick}
-        className="relative origin-center transition-transform"
+        className="relative transition-transform shrink-0"
         style={{
           width: '701px',
           height: '820px',
@@ -147,7 +221,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
         <img
           src={mapSrc}
           alt="거제도 지도"
-          className="w-full h-full object-contain pointer-events-none shadow-2xl rounded-lg"
+          className="w-full h-full object-contain pointer-events-none shadow-2xl rounded-none block"
           draggable={false}
         />
 
@@ -166,7 +240,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                 top: `${poi.position.y_pct}%`,
               }}
             >
-              <div className="w-5 h-5 rounded-full bg-sky-500/80 border border-white flex items-center justify-center text-white shadow-md group-hover:scale-125 transition-transform">
+              <div className="w-5 h-5 rounded-full bg-sky-500/85 border border-white flex items-center justify-center text-white shadow-md group-hover:scale-125 transition-transform">
                 <MapPin className="w-3 h-3" />
               </div>
 
@@ -258,9 +332,9 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
             <ZoomOut className="w-4 h-4" />
           </button>
           <button
-            onClick={() => panzoomInstanceRef.current?.reset()}
+            onClick={resetToFit}
             className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition border-t border-slate-800 mt-1 pt-1"
-            title="화면 초기화"
+            title="전체 지도 보기 (세로 밀착)"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
