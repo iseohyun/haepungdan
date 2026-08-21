@@ -204,9 +204,19 @@ export function getNaverMapUrl(
  * 티맵 (TMAP) 모바일 앱 / 인텐트 / 앱스토어 연동 실행 함수
  */
 export function openTMap(loc: NavigationLocationInput): void {
-  const guide = resolveLocationGuide(loc, 'tmap');
-  const targetName = guide.destinationName || loc.locationName || '집결지';
-  const encName = encodeURIComponent(targetName);
+  // 1. 주소 문자열 추출 (1. 티맵 전용주소 -> 2. 도로명/지번/대표주소 -> 3. 상세집결지 -> 4. 장소명)
+  const targetAddress =
+    loc.tmapAddress?.trim() ||
+    (typeof loc.mapAddress === 'object' ? loc.mapAddress?.tmap?.trim() : undefined) ||
+    loc.roadAddress?.trim() ||
+    loc.address?.trim() ||
+    loc.jibunAddress?.trim() ||
+    loc.locationDetail?.trim() ||
+    loc.locationName?.trim() ||
+    loc.name?.trim() ||
+    '거제시';
+
+  const encAddress = encodeURIComponent(targetAddress);
   const lat = loc.lat;
   const lng = loc.lng;
   const hasGps = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
@@ -216,14 +226,14 @@ export function openTMap(loc: NavigationLocationInput): void {
 
   // 1. URL Scheme 생성 (좌표 유무에 따라 분기)
   const scheme = hasGps
-    ? `tmap://route?rGoName=${encName}&rGoX=${lng}&rGoY=${lat}`
-    : `tmap://search?name=${encName}`;
+    ? `tmap://route?rGoName=${encAddress}&rGoX=${lng}&rGoY=${lat}`
+    : `tmap://search?name=${encAddress}`;
 
   if (isAndroid) {
     // 안드로이드: 미설치 시 구글 플레이스토어로 자동 이동하는 Intent URL
     const intentUrl = hasGps
-      ? `intent://route?rGoName=${encName}&rGoX=${lng}&rGoY=${lat}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`
-      : `intent://search?name=${encName}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
+      ? `intent://route?rGoName=${encAddress}&rGoX=${lng}&rGoY=${lat}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`
+      : `intent://search?name=${encAddress}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
 
     window.location.href = intentUrl;
   } else if (isIOS) {
@@ -250,9 +260,19 @@ export function getTMapUrl(
   placeName?: string
 ): string {
   if (typeof latOrLoc === 'object') {
-    const guide = resolveLocationGuide(latOrLoc, 'tmap');
-    const encDest = encodeURIComponent(guide.destinationName);
-    return `tmap://route?rGoName=${encDest}&rGoX=${latOrLoc.lng}&rGoY=${latOrLoc.lat}`;
+    const targetAddress =
+      latOrLoc.tmapAddress?.trim() ||
+      (typeof latOrLoc.mapAddress === 'object' ? latOrLoc.mapAddress?.tmap?.trim() : undefined) ||
+      latOrLoc.roadAddress?.trim() ||
+      latOrLoc.address?.trim() ||
+      latOrLoc.jibunAddress?.trim() ||
+      latOrLoc.locationDetail?.trim() ||
+      latOrLoc.locationName?.trim() ||
+      latOrLoc.name?.trim() ||
+      '거제시';
+
+    const encAddress = encodeURIComponent(targetAddress);
+    return `tmap://route?rGoName=${encAddress}&rGoX=${latOrLoc.lng}&rGoY=${latOrLoc.lat}`;
   }
   const encName = encodeURIComponent(placeName || '목적지');
   return `tmap://route?rGoName=${encName}&rGoX=${lng ?? 0}&rGoY=${latOrLoc}`;
