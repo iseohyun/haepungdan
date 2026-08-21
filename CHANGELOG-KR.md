@@ -1,5 +1,12 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.4.5] - 2026-08-21
+### 주요 변경 및 개선 사항 (미사용 고아 지정주소 업로드 방지 및 로컬/클라우드 자동 영구 삭제 필터링)
+- **미사용 지정주소(Orphan Presets) 업로드 원천 차단 및 자동 삭제 (`firebase.ts`, `db.ts`)**:
+  - 활성 모임(`gatherings`, `!isDeleted`)에서 참조되거나 사용 중이지 않은 고아 지정주소는 Firebase Firestore 클라우드로의 업로드를 원천 차단.
+  - 로컬 IndexedDB 및 Firebase Firestore 서버에 남아있는 미사용 지정주소를 동기화 및 시작 시 자동으로 감지하여 일괄 영구 삭제.
+  - 실제로 모임에서 사용 중인 유효한 지정주소만 클라우드와 선별적으로 양방향 동기화.
+
 ## [v0.4.4] - 2026-08-21
 ### 주요 변경 및 개선 사항 (지정주소 마스터 단일화 및 모임 참조 아키텍처 구축, 과거 더미 데이터 전면 삭제)
 - **지정주소 마스터(`locationPresets`) 단일 기준(Single Source of Truth) 확립 (`types/index.ts`, `CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`)**:

@@ -332,11 +332,35 @@ class FirebaseService {
       console.warn('reviews pull skipped:', e);
     }
 
-    // 8. LOCATION PRESETS: 로컬 -> 서버 PUSH & 서버 -> 로컬 PULL
+    // 8. LOCATION PRESETS: 활성 모임에서 사용 중인 프리셋만 선별 동기화 & 미사용 프리셋 로컬/서버 전면 삭제
+    const allGatherings = await db.gatherings.toArray();
+    const activeGatherings = allGatherings.filter((g) => !g.isDeleted);
+    const usedPresetIds = new Set<string>();
+    const usedPresetNames = new Set<string>();
+
+    for (const g of activeGatherings) {
+      if (g.locationPresetId) usedPresetIds.add(g.locationPresetId);
+      if (g.locationName) usedPresetNames.add(g.locationName.trim());
+    }
+
     const localPresets = await db.locationPresets.toArray();
-    if (localPresets.length > 0) {
+    const validPresetsToPush: LocationPreset[] = [];
+
+    for (const preset of localPresets) {
+      const isUsed = usedPresetIds.has(preset.id) || (preset.name && usedPresetNames.has(preset.name.trim()));
+      if (isUsed) {
+        validPresetsToPush.push(preset);
+      } else {
+        // 사용 중이지 않은 프리셋은 로컬 DB에서 삭제하고, 서버에서도 영구 삭제
+        await db.locationPresets.delete(preset.id);
+        const ref = doc(this.firestore, 'locationPresets', preset.id);
+        await deleteDoc(ref).catch(() => {});
+      }
+    }
+
+    if (validPresetsToPush.length > 0) {
       const batch = writeBatch(this.firestore);
-      for (const preset of localPresets) {
+      for (const preset of validPresetsToPush) {
         const ref = doc(this.firestore, 'locationPresets', preset.id);
         batch.set(ref, this.cleanData(preset), { merge: true });
         pushedCount++;
@@ -347,9 +371,21 @@ class FirebaseService {
     try {
       const serverPresetsSnap = await getDocs(collection(this.firestore, 'locationPresets'));
       if (!serverPresetsSnap.empty) {
-        const serverPresets = serverPresetsSnap.docs.map((d) => d.data() as LocationPreset);
-        await db.locationPresets.bulkPut(serverPresets);
-        pulledCount += serverPresets.length;
+        const serverPresets: LocationPreset[] = [];
+        for (const d of serverPresetsSnap.docs) {
+          const p = d.data() as LocationPreset;
+          const isUsed = usedPresetIds.has(p.id) || (p.name && usedPresetNames.has(p.name?.trim() || ''));
+          if (isUsed) {
+            serverPresets.push(p);
+          } else {
+            // 서버에 남아있는 미사용 프리셋도 함께 정리
+            await deleteDoc(doc(this.firestore, 'locationPresets', p.id)).catch(() => {});
+          }
+        }
+        if (serverPresets.length > 0) {
+          await db.locationPresets.bulkPut(serverPresets);
+          pulledCount += serverPresets.length;
+        }
       }
     } catch (e) {
       console.warn('locationPresets pull skipped:', e);

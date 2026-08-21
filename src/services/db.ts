@@ -32,15 +32,21 @@ export class HaepungdanDatabase extends Dexie {
       await this.users.bulkAdd(Object.values(MOCK_USERS));
     }
 
-    // 더미 데이터(매미성, 바람의 언덕 등) 로컬 IndexedDB에서 정리
-    const dummyKeywords = ['매미성', '바람의 언덕', '바람의언덕', '도장포'];
+    // 활성 모임에서 사용 중이지 않은 locationPresets 로컬 IndexedDB에서 정리
+    const allGatherings = await this.gatherings.toArray();
+    const activeGatherings = allGatherings.filter((g) => !g.isDeleted);
+    const usedPresetIds = new Set<string>();
+    const usedPresetNames = new Set<string>();
+
+    for (const g of activeGatherings) {
+      if (g.locationPresetId) usedPresetIds.add(g.locationPresetId);
+      if (g.locationName) usedPresetNames.add(g.locationName.trim());
+    }
+
     const localPresets = await this.locationPresets.toArray();
     for (const p of localPresets) {
-      if (
-        dummyKeywords.some((k) => p.name?.includes(k) || p.detail?.includes(k)) ||
-        p.id.includes('maemi') ||
-        p.id.includes('wind')
-      ) {
+      const isUsed = usedPresetIds.has(p.id) || (p.name && usedPresetNames.has(p.name.trim()));
+      if (!isUsed) {
         await this.locationPresets.delete(p.id);
       }
     }
