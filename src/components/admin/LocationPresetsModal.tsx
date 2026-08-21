@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
 import { LocationPreset } from '../../types';
@@ -26,6 +26,44 @@ export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOp
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPreset, setEditingPreset] = useState<LocationPreset | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  // 각 모임이 정확히 어느 프리셋 1곳에 속하는지 배타적으로 1:1 매칭 (중복 합산 방지)
+  const presetUsageMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const activeGatherings = allGatherings.filter((g) => !g.isDeleted);
+
+    for (const g of activeGatherings) {
+      let matchedId: string | undefined;
+
+      if (g.locationPresetId) {
+        // 1. 모임에 직접 지정된 ID가 있으면 해당 프리셋에 1:1 매칭
+        if (presets.some((p) => p.id === g.locationPresetId)) {
+          matchedId = g.locationPresetId;
+        }
+      }
+
+      if (!matchedId && g.locationName) {
+        // 2. ID가 없는 구버전 모임인 경우, 이름과 상세가 가장 일치하는 프리셋 딱 1곳만 찾음
+        const exactMatch = presets.find(
+          (p) =>
+            p.name.trim() === g.locationName.trim() &&
+            (g.locationDetail ? p.detail?.trim() === g.locationDetail.trim() : true)
+        );
+        if (exactMatch) {
+          matchedId = exactMatch.id;
+        } else {
+          const nameMatch = presets.find((p) => p.name.trim() === g.locationName.trim());
+          if (nameMatch) matchedId = nameMatch.id;
+        }
+      }
+
+      if (matchedId) {
+        map.set(matchedId, (map.get(matchedId) || 0) + 1);
+      }
+    }
+
+    return map;
+  }, [allGatherings, presets]);
 
   // 날짜/시간 포맷팅 헬퍼
   const formatPresetDate = (isoString?: string) => {
@@ -387,12 +425,7 @@ export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOp
             ) : (
               filteredPresets.map((preset) => {
                 const guide = resolveLocationGuide(preset);
-                const usageCount = allGatherings.filter(
-                  (g) =>
-                    !g.isDeleted &&
-                    (g.locationPresetId === preset.id ||
-                      (g.locationName && g.locationName.trim() === preset.name.trim()))
-                ).length;
+                const usageCount = presetUsageMap.get(preset.id) || 0;
 
                 return (
                   <div
