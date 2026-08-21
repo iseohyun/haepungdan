@@ -1,5 +1,15 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.5.2] - 2026-08-21
+### 주요 변경 및 개선 사항 (모임 데이터 필드에 클라우드 링크 추가 및 새 창 실행 지원)
+- **모임 모델에 `cloudUrl` 필드 추가 (`types/index.ts`, `CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`)**:
+  - 구글 드라이브, 네이버 MYBOX, 원드라이브, 노션 등 클라우드 공유/자료 링크를 입력하고 관리할 수 있는 `cloudUrl` 항목 추가.
+- **클라우드 링크 새 창(`target="_blank"`) 실행 및 텍스트 렌더링 (`GatheringDetailModal.tsx`)**:
+  - 상세 모달의 모임 정보 탭에 클라우드 링크 카드를 제공하며, 입력된 값으로 직접 링크를 걸어 새 창(`target="_blank"`, `rel="noopener noreferrer"`)에서 실행되도록 구현.
+  - 프로토콜(`http://` 또는 `https://`)이 생략된 주소(예: `google.com`)도 브라우저에서 안전하게 외부 링크로 연결되도록 자동 정규화.
+- **사이드바 모임 카드 클라우드 등록 뱃지 표시 (`Sidebar.tsx`)**:
+  - 모임 카드 하단에 클라우드 링크가 등록되어 있음을 알리는 뱃지 아이콘 표시.
+
 ## [v0.5.1] - 2026-08-21
 ### 주요 변경 및 개선 사항 (달력 위젯 하단 모임 세부사항 출력 UI 삭제 및 위젯 컴팩트화)
 - **달력 위젯 하단 목록 UI 제거 (`CalendarWidget.tsx`)**:

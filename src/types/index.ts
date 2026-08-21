@@ -33,6 +33,7 @@ export interface Gathering {
   thumbnailUrl?: string;       // 대표 썸네일 이미지 (WebP Data URL)
   videoUrl?: string;           // YouTube 영상 또는 Shorts 링크
   videoUrls?: string[];        // 추가 비디오 링크들
+  cloudUrl?: string;           // 클라우드 자료 링크 (Google Drive, Notion 등)
   createdBy: string;           // 작성자 UID
   createdByName: string;       // 작성자 이름
   createdAt: string;           // 생성 일시

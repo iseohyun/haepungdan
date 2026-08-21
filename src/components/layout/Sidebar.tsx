@@ -20,6 +20,7 @@ import {
   Settings,
   LogOut,
   Navigation,
+  Cloud,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -312,7 +313,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       </div>
 
                       <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-800">
-                        <span>작성: {g.createdByName}</span>
+                        <div className="flex items-center gap-2">
+                          <span>작성: {g.createdByName}</span>
+                          {g.cloudUrl && (
+                            <span className="flex items-center gap-0.5 text-sky-400 font-semibold" title="클라우드 링크 등록됨">
+                              <Cloud className="w-2.5 h-2.5" />
+                              <span>클라우드</span>
+                            </span>
+                          )}
+                        </div>
                         <span className="text-ocean-400 flex items-center gap-0.5">
                           상세보기 <ChevronRight className="w-3 h-3" />
                         </span>

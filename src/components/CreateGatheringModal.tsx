@@ -22,6 +22,7 @@ import {
   Hash,
   Calendar,
   Navigation,
+  Cloud,
 } from 'lucide-react';
 
 
@@ -80,6 +81,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
   const [selectedDetailId, setSelectedDetailId] = useState<string>('');  // '' = 선택 안함, 'direct' = 직접 입력
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
+  const [cloudUrl, setCloudUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>();
   const [isCompressing, setIsCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -95,6 +97,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
       setSelectedDetailId('');
       setDescription('');
       setVideoUrl('');
+      setCloudUrl('');
       setThumbnailUrl(undefined);
     }
   }, [isOpen, defaultNextRound]);
@@ -201,6 +204,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
       thumbnailUrl,
       videoUrl: videoUrl.trim() || undefined,
       videoUrls: videoUrl.trim() ? [videoUrl.trim()] : [],
+      cloudUrl: cloudUrl.trim() || undefined,
       createdBy: currentUser?.uid || 'anonymous_user',
       createdByName: currentUser?.displayName || '익명 회원',
     });
@@ -376,7 +380,22 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
                 />
               </div>
 
-              {/* ── 7. 대표 이미지 ── */}
+              {/* ── 7. 클라우드 링크 ── */}
+              <div className="flex items-center gap-3 px-5 py-3.5">
+                <label className="text-xs font-bold text-slate-400 w-24 shrink-0 flex items-center gap-1.5">
+                  <Cloud className="w-3.5 h-3.5 text-sky-400" />
+                  클라우드
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: google.com 또는 drive.google.com/..."
+                  value={cloudUrl}
+                  onChange={(e) => setCloudUrl(e.target.value)}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-ocean-500"
+                />
+              </div>
+
+              {/* ── 8. 대표 이미지 ── */}
               <div className="flex items-center gap-3 px-5 py-3.5">
                 <label className="text-xs font-bold text-slate-400 w-24 shrink-0 flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5 text-sky-400" />

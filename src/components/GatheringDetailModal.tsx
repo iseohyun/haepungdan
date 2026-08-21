@@ -40,6 +40,7 @@ import {
   Loader2,
   Edit3,
   Hash,
+  Cloud,
 } from 'lucide-react';
 
 
@@ -98,12 +99,39 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const [editCoordError, setEditCoordError] = useState<string | null>(null);
   const [editDescription, setEditDescription] = useState(gathering.description);
   const [editVideoUrl, setEditVideoUrl] = useState(gathering.videoUrl || '');
+  const [editCloudUrl, setEditCloudUrl] = useState(gathering.cloudUrl || '');
   const [editThumbnailUrl, setEditThumbnailUrl] = useState<string | undefined>(gathering.thumbnailUrl);
   const [showEditDirectModal, setShowEditDirectModal] = useState(false);
 
   const [isCompressingEditThumb, setIsCompressingEditThumb] = useState(false);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // 수정 모드 시작 핸들러 (최신 gathering prop 동기화)
+  const startEditing = () => {
+    const dt = parseLocalDateTime(gathering.dateTime);
+    setEditRoundNumber(gathering.roundNumber);
+    setEditTitle(gathering.title);
+    setEditDate(dt.date);
+    setEditTime(dt.time);
+    setEditStatus(gathering.status);
+    setEditLocationPresetId(gathering.locationPresetId);
+    setEditLocationId(gathering.locationPresetId || 'custom');
+    setEditLocationName(gathering.locationName);
+    setEditLocationDetail(gathering.locationDetail || '');
+    setEditAddress(gathering.address || '');
+    setEditRoadAddress(gathering.roadAddress || '');
+    setEditKakaoAddress(gathering.kakaoAddress || '');
+    setEditNaverAddress(gathering.naverAddress || '');
+    setEditTmapAddress(gathering.tmapAddress || '');
+    setEditPosition(gathering.position);
+    setEditCoordError(null);
+    setEditDescription(gathering.description);
+    setEditVideoUrl(gathering.videoUrl || '');
+    setEditCloudUrl(gathering.cloudUrl || '');
+    setEditThumbnailUrl(gathering.thumbnailUrl);
+    setIsEditing(true);
+  };
 
   // RSVP 입력 상태
   const [rsvpComment, setRsvpComment] = useState('');
@@ -231,6 +259,7 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
           description: editDescription.trim(),
           videoUrl: editVideoUrl.trim() || undefined,
           videoUrls: editVideoUrl.trim() ? [editVideoUrl.trim()] : [],
+          cloudUrl: editCloudUrl.trim() || undefined,
           thumbnailUrl: editThumbnailUrl,
         });
       }
@@ -615,6 +644,21 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                   />
                 </div>
 
+                {/* ── 클라우드 링크 ── */}
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <label className="text-xs font-bold text-slate-400 w-24 shrink-0 flex items-center gap-1.5">
+                    <Cloud className="w-3.5 h-3.5 text-sky-400" />
+                    클라우드
+                  </label>
+                  <input
+                    type="text"
+                    value={editCloudUrl}
+                    onChange={(e) => setEditCloudUrl(e.target.value)}
+                    placeholder="예: google.com 또는 drive.google.com/..."
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-ocean-500"
+                  />
+                </div>
+
                 {/* ── 대표 이미지 ── */}
                 <div className="flex items-center gap-3 px-5 py-3.5">
                   <label className="text-xs font-bold text-slate-400 w-24 shrink-0 flex items-center gap-1.5">
@@ -776,6 +820,45 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                     </div>
                   )}
 
+                  {/* 클라우드 / 공유 자료 링크 */}
+                  {gathering.cloudUrl && (
+                    <div className="p-3.5 rounded-2xl glass-card border border-slate-800 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 shrink-0">
+                          <Cloud className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-[11px] text-slate-400 font-semibold block">클라우드</span>
+                          <a
+                            href={
+                              gathering.cloudUrl.startsWith('http://') || gathering.cloudUrl.startsWith('https://')
+                                ? gathering.cloudUrl
+                                : `https://${gathering.cloudUrl}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-bold text-sky-400 hover:text-sky-300 hover:underline truncate block"
+                          >
+                            {gathering.cloudUrl}
+                          </a>
+                        </div>
+                      </div>
+                      <a
+                        href={
+                          gathering.cloudUrl.startsWith('http://') || gathering.cloudUrl.startsWith('https://')
+                            ? gathering.cloudUrl
+                            : `https://${gathering.cloudUrl}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="py-1.5 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
+                      >
+                        <span>열기</span>
+                        <ExternalLink className="w-3 h-3 opacity-70" />
+                      </a>
+                    </div>
+                  )}
+
                   {/* 모임 상세 설명 */}
                   <div className="p-4 rounded-2xl glass-card border border-slate-800 space-y-2">
                     <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
@@ -810,7 +893,7 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                   {canManageGathering && (
                     <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2">
                       <button
-                        onClick={() => setIsEditing(true)}
+                        onClick={startEditing}
                         className="px-3.5 py-2 rounded-xl bg-ocean-600/20 hover:bg-ocean-600/30 text-ocean-300 border border-ocean-500/40 text-xs font-semibold flex items-center gap-1.5 transition"
                       >
                         <Edit3 className="w-3.5 h-3.5" />

@@ -5,6 +5,14 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-08-21
+
+### Added & Improved
+- **Added Cloud Resource Link Field and External Blank Window Support (`types/index.ts`, `CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`, `Sidebar.tsx`)**:
+  - Added `cloudUrl` field to the gathering model for cloud storage or document links (Google Drive, Notion, OneDrive, etc.).
+  - Rendered clickable cloud link using raw values opening in a new tab (`target="_blank"`, `rel="noopener noreferrer"`), with auto-protocol normalization for domain-only inputs.
+  - Added cloud badge indicator on gathering list cards in the sidebar.
+
 ## [0.5.1] - 2026-08-21
 
 ### Added & Improved
