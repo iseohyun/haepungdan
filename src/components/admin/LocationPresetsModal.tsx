@@ -11,6 +11,8 @@ import {
   Edit3,
   Trash2,
   Search,
+  Clock,
+  Waves,
 } from 'lucide-react';
 
 interface LocationPresetsModalProps {
@@ -20,9 +22,26 @@ interface LocationPresetsModalProps {
 
 export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOpen, onClose }) => {
   const presets = useLiveQuery(() => db.locationPresets.toArray(), []) ?? [];
+  const allGatherings = useLiveQuery(() => db.gatherings.toArray(), []) ?? [];
   const [searchQuery, setSearchQuery] = useState('');
   const [editingPreset, setEditingPreset] = useState<LocationPreset | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+
+  // 날짜/시간 포맷팅 헬퍼
+  const formatPresetDate = (isoString?: string) => {
+    if (!isoString) return '-';
+    try {
+      const d = new Date(isoString);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${y}.${m}.${day} ${hh}:${mm}`;
+    } catch {
+      return isoString;
+    }
+  };
 
   // 폼 상태
   const [formName, setFormName] = useState('');
@@ -368,12 +387,19 @@ export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOp
             ) : (
               filteredPresets.map((preset) => {
                 const guide = resolveLocationGuide(preset);
+                const usageCount = allGatherings.filter(
+                  (g) =>
+                    !g.isDeleted &&
+                    (g.locationPresetId === preset.id ||
+                      (g.locationName && g.locationName.trim() === preset.name.trim()))
+                ).length;
+
                 return (
                   <div
                     key={preset.id}
                     className="p-3.5 sm:p-4 rounded-2xl glass-card border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition hover:border-emerald-500/40"
                   >
-                    <div className="space-y-1 min-w-0 flex-1">
+                    <div className="space-y-1.5 min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-white">{preset.name}</span>
                         {preset.detail && (
@@ -382,6 +408,18 @@ export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOp
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                           {guide.badgeLabel}
                         </span>
+
+                        {/* 모임 사용 횟수 뱃지 */}
+                        {usageCount > 0 ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            <Waves className="w-3 h-3 text-sky-400" />
+                            모임 {usageCount}회 사용
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-800 text-slate-400 border border-slate-700/60">
+                            0회 (미사용)
+                          </span>
+                        )}
                       </div>
 
                       {/* 안내 주소 및 GPS 좌표 */}
@@ -392,8 +430,8 @@ export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOp
                         </span>
                       </div>
 
-                      {/* 특정 지도별 등록된 주소가 있다면 간략 태그 표시 */}
-                      <div className="flex items-center gap-1.5 pt-0.5 text-[10px]">
+                      {/* 특정 지도별 등록된 주소 태그 + 최종 수정일자 */}
+                      <div className="flex items-center gap-2 pt-0.5 text-[10px] flex-wrap">
                         {preset.kakaoAddress && (
                           <span className="px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
                             카카오: {preset.kakaoAddress}
@@ -409,6 +447,12 @@ export const LocationPresetsModal: React.FC<LocationPresetsModalProps> = ({ isOp
                             티맵: {preset.tmapAddress}
                           </span>
                         )}
+
+                        {/* 최종 수정일자 */}
+                        <div className="inline-flex items-center gap-1 text-[11px] text-slate-400 ml-auto font-mono">
+                          <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                          <span>최종 수정: {formatPresetDate(preset.updatedAt || preset.createdAt)}</span>
+                        </div>
                       </div>
                     </div>
 

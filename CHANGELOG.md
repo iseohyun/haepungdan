@@ -5,6 +5,13 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.7] - 2026-08-21
+
+### Added & Improved
+- **Display Last Modified Date & Gathering Usage Badges in Location Presets Modal (`LocationPresetsModal.tsx`)**:
+  - Added formatted last modified date (`YYYY.MM.DD HH:mm`) on each location preset card.
+  - Added live usage count badges (`🏊 모임 N회 사용` / `0회 (미사용)`) reflecting real-time gathering associations.
+
 ## [0.4.6] - 2026-08-21
 
 ### Added & Improved
