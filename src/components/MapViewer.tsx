@@ -8,8 +8,6 @@ import {
   ZoomOut,
   RotateCcw,
   Crosshair,
-  AArrowUp,
-  AArrowDown,
   Lock,
   Unlock,
 } from 'lucide-react';
@@ -24,7 +22,6 @@ interface MapViewerProps {
   gatherings: Gathering[];
   selectedGatheringId: string | null;
   onSelectGathering: (gathering: Gathering) => void;
-  onUpdateGathering?: (gatheringId: string, updates: Partial<Gathering>) => Promise<void> | void;
   isControlsOpen?: boolean;
   isGisOverlayOpen?: boolean;
 }
@@ -33,7 +30,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
   gatherings,
   selectedGatheringId,
   onSelectGathering,
-  onUpdateGathering,
   isControlsOpen = true,
   isGisOverlayOpen = true,
 }, ref) => {
@@ -44,18 +40,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
 
   const [cursorGps, setCursorGps] = useState<{ lat: number; lng: number; x_pct: number; y_pct: number } | null>(null);
   const [currentScale, setCurrentScale] = useState<number>(1.0);
-  const [labelFontSize, setLabelFontSize] = useState<number>(18); // 기본 font-size: 18px
-
-  // 화면 환경 감지 (모바일 < 768px vs 웹/PC >= 768px)
-  const [isMobileView, setIsMobileView] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 768);
-
-  useEffect(() => {
-    const handleCheckMobile = () => {
-      setIsMobileView(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleCheckMobile);
-    return () => window.removeEventListener('resize', handleCheckMobile);
-  }, []);
 
   // 관리자 전용: 마커 보정 (자물쇠 모드)
   const [isCalibrationUnlocked, setIsCalibrationUnlocked] = useState<boolean>(false);
@@ -66,39 +50,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
     startOffset: { dx: number; dy: number };
     isDragging: boolean;
   } | null>(null);
-
-  // 사용자가 실시간으로 드래그 중인 오프셋 상태 매핑 { [groupKey]: { dx, dy } }
-  const [customOffsets, setCustomOffsets] = useState<Record<string, { dx: number; dy: number }>>({});
-
-  // 드래그 추적 Ref
-  const draggingRef = useRef<{
-    groupKey: string;
-    startClientX: number;
-    startClientY: number;
-    startDx: number;
-    startDy: number;
-    hasMoved: boolean;
-    gatherings: Gathering[];
-    latestDx: number;
-    latestDy: number;
-  } | null>(null);
-
-  // 글자 크기 확대/축소 핸들러 (현재 크기 console.log 출력)
-  const handleIncreaseFontSize = () => {
-    setLabelFontSize((prev) => {
-      const next = Math.min(prev + 2, 32);
-      console.log(`[MapViewer] 현재 마커 글자 크기: ${next}px`);
-      return next;
-    });
-  };
-
-  const handleDecreaseFontSize = () => {
-    setLabelFontSize((prev) => {
-      const next = Math.max(prev - 2, 10);
-      console.log(`[MapViewer] 현재 마커 글자 크기: ${next}px`);
-      return next;
-    });
-  };
 
   // 세로축(Height 100vh) 또는 가로축을 여백 없이 100% 꽉 채우는 최적 Fit Scale 계산
   const getFitScale = useCallback(() => {
@@ -238,34 +189,13 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
     }
   };
 
-  // 전역 마우스/터치 드래그 리스너 (레이블 드래그 이동 & 보정 모드 드래그)
+  // 전역 마우스/터치 드래그 리스너 (보정 모드 드래그)
   useEffect(() => {
     const handleGlobalMouseMove = (e: MouseEvent | TouchEvent) => {
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-      // 1. 개별 레이블 드래그 (마커가 unscale(1/currentScale) 되어 있으므로 화면 픽셀과 1:1 일치)
-      if (draggingRef.current) {
-        const deltaX = clientX - draggingRef.current.startClientX;
-        const deltaY = clientY - draggingRef.current.startClientY;
-
-        if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
-          draggingRef.current.hasMoved = true;
-        }
-
-        const nextDx = Number((draggingRef.current.startDx + deltaX).toFixed(1));
-        const nextDy = Number((draggingRef.current.startDy + deltaY).toFixed(1));
-
-        draggingRef.current.latestDx = nextDx;
-        draggingRef.current.latestDy = nextDy;
-
-        setCustomOffsets((prev) => ({
-          ...prev,
-          [draggingRef.current!.groupKey]: { dx: nextDx, dy: nextDy },
-        }));
-      }
-
-      // 2. 관리자 마커 전체 보정 드래그
+      // 관리자 마커 전체 보정 드래그
       if (calibDragRef.current && calibDragRef.current.isDragging) {
         const dx = (clientX - calibDragRef.current.startX) / currentScale;
         const dy = (clientY - calibDragRef.current.startY) / currentScale;
@@ -277,30 +207,8 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       }
     };
 
-    const handleGlobalMouseUp = async () => {
-      // 1. 개별 레이블 드래그 종료
-      if (draggingRef.current) {
-        const { hasMoved, latestDx, latestDy, gatherings: groupGatherings } = draggingRef.current;
-        draggingRef.current = null;
-
-        // 드래그가 실제로 일어났을 때만 DB에 영구 저장 (웹/모바일 환경별 독립 저장)
-        if (hasMoved && onUpdateGathering && groupGatherings.length > 0) {
-          const offsetToSave = { dx: latestDx, dy: latestDy };
-          const updatePayload = isMobileView
-            ? { labelOffsetMobile: offsetToSave }
-            : { labelOffset: offsetToSave };
-
-          for (const g of groupGatherings) {
-            try {
-              await onUpdateGathering(g.id, updatePayload);
-            } catch (err) {
-              console.error('Failed to persist label offset to DB:', err);
-            }
-          }
-        }
-      }
-
-      // 2. 보정 모드 드래그 종료
+    const handleGlobalMouseUp = () => {
+      // 보정 모드 드래그 종료
       if (calibDragRef.current) {
         calibDragRef.current = null;
       }
@@ -317,7 +225,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       window.removeEventListener('touchmove', handleGlobalMouseMove);
       window.removeEventListener('touchend', handleGlobalMouseUp);
     };
-  }, [currentScale, onUpdateGathering]);
+  }, [currentScale]);
 
   // [보정 모드] 자물쇠 풀림 상태에서 방향키로 1px씩 정밀 이동
   useEffect(() => {
@@ -417,7 +325,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
   };
 
   const activeGatherings = gatherings.filter((g) => !g.isDeleted);
-  const selectedGathering = activeGatherings.find((g) => g.id === selectedGatheringId) ?? null;
 
   // ── 마커 그룹화 ──────────────────────────────────────────────
   // 위치가 가까운 마커들을 하나의 그룹으로 합침 (1.5% 이내 = 동일 위치)
@@ -456,65 +363,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
     }
   }
 
-  // ── 레이블 박스 기하학적 최소 이격거리 계산 함수 ────────────────
-  // 마커 중심에서 '레이블의 가장 가까운 border'까지의 거리가 최소 1em (labelFontSize) 이상이 되도록
-  // 레이블 박스 중심까지의 최소 중심간 거리(minCenterDist)를 정밀 계산
-  const MAP_W = 701;
-  const MAP_H = 820;
-
-  function getMinCenterOffset(nx: number, ny: number, roundCount: number, fontSize: number): number {
-    // 레이블 박스의 가로 및 세로 크기 (px)
-    const approxWidth = Math.max(34, fontSize * (roundCount * 1.1 + 0.6) + 16);
-    const approxHeight = fontSize + 12; // 패딩 포함 박스 높이
-
-    const halfW = approxWidth / 2;
-    const halfH = approxHeight / 2;
-
-    // (nx, ny) 방향으로 레이블 중심에서 가장자리 border까지의 거리 (Ray-Box Intersection)
-    const absNx = Math.abs(nx) || 0.0001;
-    const absNy = Math.abs(ny) || 0.0001;
-    const dEdge = Math.min(halfW / absNx, halfH / absNy);
-
-    // 마커 반지름(약 4px) + 최소 이격거리 1em (fontSize) + 레이블 중심~외곽 거리 (dEdge)
-    const markerRadius = 4;
-    return dEdge + fontSize + markerRadius;
-  }
-
-  function getDefaultLabelOffset(group: MarkerGroup): { dx: number; dy: number } {
-    let sumDx = 0, sumDy = 0;
-    for (const other of groups) {
-      if (other === group) continue;
-      const dx = group.x_pct - other.x_pct;
-      const dy = group.y_pct - other.y_pct;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
-      sumDx += dx / (dist * dist);
-      sumDy += dy / (dist * dist);
-    }
-
-    let nx = 0;
-    let ny = 1;
-
-    if (Math.abs(sumDx) > 0.0001 || Math.abs(sumDy) > 0.0001) {
-      const mag = Math.sqrt(sumDx * sumDx + sumDy * sumDy);
-      nx = sumDx / mag;
-      ny = sumDy / mag;
-    }
-
-    const minCenterDist = getMinCenterOffset(nx, ny, group.gatherings.length, labelFontSize);
-    const markerPxX = (group.x_pct / 100) * MAP_W;
-    const markerPxY = (group.y_pct / 100) * MAP_H;
-    let dx = nx * minCenterDist;
-    let dy = ny * minCenterDist;
-
-    if (markerPxX + dx < 24) dx = 24 - markerPxX;
-    if (markerPxX + dx > MAP_W - 24) dx = MAP_W - 24 - markerPxX;
-    if (markerPxY + dy < 16) dy = 16 - markerPxY;
-    if (markerPxY + dy > MAP_H - 16) dy = MAP_H - 16 - markerPxY;
-
-    return { dx, dy };
-  }
-
-  // 지도의 줌 배율에 반비례하여 마커/레이블 크기를 항상 동일하게 고정 (픽셀 스케일 보정)
+  // 지도의 줌 배율에 반비례하여 마커 크기를 항상 동일하게 고정 (픽셀 스케일 보정)
   const unscaleFactor = currentScale > 0 ? 1 / currentScale : 1.0;
 
   return (
@@ -560,7 +409,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
           draggable={false}
         />
 
-        {/* 그룹화된 마커 렌더링 */}
+        {/* 그룹화된 마커 핀 렌더링 (레이블 없는 순수 포인트) */}
         {groups.map((group, idx) => {
           const isSelected = group.isSelected;
           const isRecruiting = group.hasRecruiting;
@@ -572,48 +421,6 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
           // 현재 마커 렌더링 위치 (보정 오프셋 반영)
           const currentPosX = group.x_pct + calibShiftPctX;
           const currentPosY = group.y_pct + calibShiftPctY;
-
-          // 1. 기준 오프셋 (드래그 중 > DB에 저장된 환경별 오프셋 > 자동 계산 기본 오프셋)
-          const storedOffset = isMobileView
-            ? (group.gatherings.find((g) => g.labelOffsetMobile)?.labelOffsetMobile ?? group.gatherings.find((g) => g.labelOffset)?.labelOffset)
-            : (group.gatherings.find((g) => g.labelOffset)?.labelOffset ?? group.gatherings.find((g) => g.labelOffsetMobile)?.labelOffsetMobile);
-          const rawOffset = customOffsets[group.groupKey] ?? storedOffset ?? getDefaultLabelOffset(group);
-
-          // 2. 레이블 border와 마커 사이의 기하학적 최소/최대 거리 계산:
-          const rawDist = Math.sqrt(rawOffset.dx * rawOffset.dx + rawOffset.dy * rawOffset.dy) || 0.001;
-          const dirX = rawOffset.dx / rawDist;
-          const dirY = rawOffset.dy / rawDist;
-
-          // 레이블의 마커와 가장 가까운 border로부터 마커까지의 최소 거리는 1em (labelFontSize)
-          const minCenterDist = getMinCenterOffset(dirX, dirY, group.gatherings.length, labelFontSize);
-
-          let renderDx = rawOffset.dx;
-          let renderDy = rawOffset.dy;
-
-          // 거리가 최소 1em보다 가까우면 마커 점과 겹치지 않도록 최소 이격거리로 밀어냄
-          if (rawDist < minCenterDist) {
-            renderDx = dirX * minCenterDist;
-            renderDy = dirY * minCenterDist;
-          }
-
-          // 회차별 gathering 맵핑 및 정렬
-          const roundMap = new Map<number, Gathering>();
-          group.gatherings.forEach((g) => {
-            if (g.roundNumber !== undefined) {
-              roundMap.set(g.roundNumber, g);
-            }
-          });
-          const roundNumbers = Array.from(roundMap.keys()).sort((a, b) => a - b);
-
-          // SVG 선 (마커 중심 0,0 → 레이블 방향)
-          const svgMinX = Math.min(0, renderDx) - 4;
-          const svgMinY = Math.min(0, renderDy) - 4;
-          const svgW = Math.abs(renderDx) + 8;
-          const svgH = Math.abs(renderDy) + 8;
-          const svgX1 = 0 - svgMinX;
-          const svgY1 = 0 - svgMinY;
-          const svgX2 = renderDx - svgMinX;
-          const svgY2 = renderDy - svgMinY;
 
           return (
             <React.Fragment key={idx}>
@@ -631,17 +438,13 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   className="z-5 flex flex-col items-center opacity-40"
                 >
                   <div className="w-3.5 h-3.5 rounded-full border-2 border-dashed border-slate-300 bg-slate-500/50 shadow" />
-                  <span className="text-[9px] font-mono font-bold text-slate-300 mt-0.5 whitespace-nowrap">
-                    {roundNumbers.length > 0 ? roundNumbers.join(',') : '•'}
-                  </span>
                 </div>
               )}
 
-              {/* 실제 이동/보정 중인 마커 + 레이블 */}
+              {/* 실제 이동/보정 중인 마커 핀 */}
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  // 그룹 내 선택
                   const sel = group.gatherings.find((g) => g.id === selectedGatheringId);
                   onSelectGathering(sel ?? group.gatherings[0]);
                 }}
@@ -649,158 +452,34 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   left: `${currentPosX}%`,
                   top: `${currentPosY}%`,
                   position: 'absolute',
-                  // 확대/축소 시에도 마커와 레이블 크기가 일정하도록 unscale 적용
                   transform: `translate(-50%, -50%) scale(${unscaleFactor})`,
                   transformOrigin: 'center center',
                 }}
-                className="cursor-pointer z-10 group"
+                className="cursor-pointer z-10 group p-2 -m-2"
+                title={group.gatherings.map((g) => `${g.roundNumber !== undefined ? (g.roundNumber === 0 ? '[번개]' : `[${g.roundNumber}차]`) : ''} ${g.title}`).join('\n')}
               >
                 {/* 모집 중 펄스 링 */}
                 {isRecruiting && (
-                  <div className="absolute -inset-2 rounded-full bg-emerald-400/30 animate-ping pointer-events-none" />
+                  <div className="absolute inset-0 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />
                 )}
 
-                {/* 빨간 점 마커 */}
+                {/* 원형 점 마커 핀 */}
                 <div
-                  className={`rounded-full border-2 border-white shadow-lg transition-all ${
+                  className={`rounded-full border-2 border-white shadow-lg transition-all duration-200 ${
                     isSelected
-                      ? 'w-4 h-4 bg-red-400 ring-4 ring-white/70 shadow-red-400/60'
+                      ? 'w-4 h-4 bg-red-500 ring-4 ring-red-400/60 shadow-red-500/80 scale-125'
                       : isRecruiting
-                      ? 'w-3.5 h-3.5 bg-emerald-400 ring-2 ring-emerald-200'
-                      : 'w-3 h-3 bg-red-500 shadow-red-500/40'
+                      ? 'w-3.5 h-3.5 bg-emerald-400 ring-2 ring-emerald-200 shadow-emerald-400/50 hover:scale-125'
+                      : 'w-3 h-3 bg-red-500/90 shadow-red-500/40 hover:bg-red-400 hover:scale-125'
                   }`}
                 />
-
-                {/* SVG 연결선 (마커 중심 → 레이블) */}
-                <svg
-                  style={{
-                    position: 'absolute',
-                    left: `${svgMinX}px`,
-                    top: `${svgMinY}px`,
-                    width: `${svgW}px`,
-                    height: `${svgH}px`,
-                    pointerEvents: 'none',
-                    overflow: 'visible',
-                  }}
-                >
-                  <line
-                    x1={svgX1} y1={svgY1}
-                    x2={svgX2} y2={svgY2}
-                    stroke={isSelected ? '#f87171' : isRecruiting ? '#34d399' : '#f87171'}
-                    strokeWidth="1.2"
-                    strokeOpacity="0.8"
-                    strokeDasharray="2 2"
-                  />
-                </svg>
-
-                {/* 드래그 가능한 레이블 (자물쇠 해제 시에만 드래그 가능, 배경/테두리 50% 투명도, 글자는 100% 완전 불투명) */}
-                <div
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    if (!isCalibrationUnlocked) return;
-                    if (e.button !== 0 && e.pointerType === 'mouse') return;
-                    draggingRef.current = {
-                      groupKey: group.groupKey,
-                      startClientX: e.clientX,
-                      startClientY: e.clientY,
-                      startDx: rawOffset.dx,
-                      startDy: rawOffset.dy,
-                      hasMoved: false,
-                      gatherings: group.gatherings,
-                      latestDx: rawOffset.dx,
-                      latestDy: rawOffset.dy,
-                    };
-                  }}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    if (!isCalibrationUnlocked) return;
-                    if (e.button !== 0) return;
-                    draggingRef.current = {
-                      groupKey: group.groupKey,
-                      startClientX: e.clientX,
-                      startClientY: e.clientY,
-                      startDx: rawOffset.dx,
-                      startDy: rawOffset.dy,
-                      hasMoved: false,
-                      gatherings: group.gatherings,
-                      latestDx: rawOffset.dx,
-                      latestDy: rawOffset.dy,
-                    };
-                  }}
-                  onTouchStart={(e) => {
-                    e.stopPropagation();
-                    if (!isCalibrationUnlocked) return;
-                    if (e.touches.length > 0) {
-                      draggingRef.current = {
-                        groupKey: group.groupKey,
-                        startClientX: e.touches[0].clientX,
-                        startClientY: e.touches[0].clientY,
-                        startDx: rawOffset.dx,
-                        startDy: rawOffset.dy,
-                        hasMoved: false,
-                        gatherings: group.gatherings,
-                        latestDx: rawOffset.dx,
-                        latestDy: rawOffset.dy,
-                      };
-                    }
-                  }}
-                  style={{
-                    position: 'absolute',
-                    left: `${renderDx}px`,
-                    top: `${renderDy}px`,
-                    transform: 'translate(-50%, -50%)',
-                    whiteSpace: 'nowrap',
-                    fontSize: `${labelFontSize}px`,
-                  }}
-                  className={`panzoom-exclude px-2 py-0.5 rounded-lg shadow-lg border flex items-center gap-1 font-mono font-black select-none backdrop-blur-xs transition-all ${
-                    isCalibrationUnlocked
-                      ? 'cursor-move ring-2 ring-amber-400/80 animate-pulse'
-                      : 'cursor-pointer'
-                  } ${
-                    isSelected
-                      ? 'bg-slate-900/50 border-red-500/50 ring-1 ring-red-400/30'
-                      : isRecruiting
-                      ? 'bg-slate-900/50 border-emerald-500/50'
-                      : 'bg-slate-900/50 border-slate-700/50 hover:border-slate-500/60'
-                  }`}
-                  title={isCalibrationUnlocked ? '드래그하여 레이블 위치 이동 가능' : '클릭하여 모임 선택'}
-                >
-                  {roundNumbers.length > 0 ? (
-                    roundNumbers.map((rn, rIdx) => {
-                      const isThisSelected = selectedGathering?.roundNumber === rn;
-                      const gItem = roundMap.get(rn);
-                      return (
-                        <React.Fragment key={rn}>
-                          {rIdx > 0 && <span className="text-slate-400 opacity-100 font-normal">,</span>}
-                          <span
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (gItem) {
-                                onSelectGathering(gItem);
-                              }
-                            }}
-                            className={`px-1 py-0.2 rounded transition-all cursor-pointer opacity-100 ${
-                              isThisSelected
-                                ? 'bg-red-500 text-white font-black shadow ring-1 ring-red-300'
-                                : 'text-red-300 hover:text-white hover:bg-slate-800/80'
-                            }`}
-                          >
-                            {rn === 0 ? '번개' : rn}
-                          </span>
-                        </React.Fragment>
-                      );
-                    })
-                  ) : (
-                    <span className="text-red-300 opacity-100 px-1">•</span>
-                  )}
-                </div>
               </div>
             </React.Fragment>
           );
         })}
       </div>
 
-      {/* 우측 상단 플로팅 컨트롤 (지도 줌 & 리셋 & 글자 크기 & 관리자 자물쇠) */}
+      {/* 우측 상단 플로팅 컨트롤 (지도 줌 & 리셋 & 관리자 자물쇠) */}
       {isControlsOpen && (
         <div className="absolute top-4 right-3 md:right-4 z-20 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200">
           <div className="glass-panel rounded-2xl p-1 flex flex-col shadow-xl">
@@ -827,26 +506,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
               <RotateCcw className="w-4 h-4" />
             </button>
 
-            {/* 명확하고 잘 보이는 구분선 <hr> */}
-            <div className="h-px bg-slate-600/80 my-1.5 mx-1" />
-
-            {/* 2. 글자 크기 확대 / 축소 */}
-            <button
-              onClick={handleIncreaseFontSize}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition"
-              title="글자 크기 확대 (A↑)"
-            >
-              <AArrowUp className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleDecreaseFontSize}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition"
-              title="글자 크기 축소 (A↓)"
-            >
-              <AArrowDown className="w-4 h-4" />
-            </button>
-
-            {/* 3. 관리자 전용: 자물쇠 (마커 보정 모드) */}
+            {/* 2. 관리자 전용: 자물쇠 (마커 보정 모드) */}
             {isAdmin && (
               <>
                 <div className="h-px bg-slate-600/80 my-1.5 mx-1" />

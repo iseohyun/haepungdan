@@ -256,7 +256,6 @@ export const App: React.FC = () => {
           gatherings={gatherings}
           selectedGatheringId={selectedGatheringId}
           onSelectGathering={handleSelectGathering}
-          onUpdateGathering={handleUpdateGathering}
           isControlsOpen={isMapControlsOpen}
           isGisOverlayOpen={isGisOverlayOpen}
         />

@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Gathering } from '../types';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Minimize2, Maximize2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Minimize2, Maximize2, X, Play, Pause } from 'lucide-react';
 
 interface CalendarWidgetProps {
   isOpen: boolean;
@@ -20,7 +20,11 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
   onFocusCoordinate,
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // 달력 기본 접기(축소) 상태
+  const [isCollapsed, setIsCollapsed] = useState(true);
+
+  // 자동 애니메이션 간격 설정 ("1초" -> "2초"(기본) -> "3초" -> "0초" -> "1초")
+  const [autoInterval, setAutoInterval] = useState<number>(2); // 2초 기본
 
   // 활성 모임 정렬 목록 (회차순 오름차순)
   const activeGatherings = useMemo(() => {
@@ -45,6 +49,13 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     return activeGatherings.findIndex((g) => g.id === selectedGathering.id);
   }, [activeGatherings, selectedGathering]);
 
+  // 현재 선택된 이벤트의 일자(Day)
+  const selectedDay = useMemo(() => {
+    if (!selectedGathering) return null;
+    const d = new Date(selectedGathering.dateTime);
+    return isNaN(d.getTime()) ? null : d.getDate();
+  }, [selectedGathering]);
+
   // 선택된 모임이 바뀌면 해당 모임의 연/월로 달력 자동 이동
   useEffect(() => {
     if (selectedGathering) {
@@ -55,13 +66,11 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     }
   }, [selectedGathering]);
 
-  if (!isOpen) return null;
-
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
   // 이전 모임으로 이동 (모달 팝업 없이 선택/포커스만 이동)
-  const handlePrevMeeting = () => {
+  const handlePrevMeeting = useCallback(() => {
     if (activeGatherings.length === 0) return;
     let targetIndex = currentIndex - 1;
     if (targetIndex < 0) {
@@ -74,10 +83,10 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
         onFocusCoordinate(target.position.x_pct, target.position.y_pct);
       }
     }
-  };
+  }, [activeGatherings, currentIndex, onSelectGathering, onFocusCoordinate]);
 
   // 다음 모임으로 이동 (모달 팝업 없이 선택/포커스만 이동)
-  const handleNextMeeting = () => {
+  const handleNextMeeting = useCallback(() => {
     if (activeGatherings.length === 0) return;
     let targetIndex = currentIndex + 1;
     if (targetIndex >= activeGatherings.length) {
@@ -90,7 +99,30 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
         onFocusCoordinate(target.position.x_pct, target.position.y_pct);
       }
     }
+  }, [activeGatherings, currentIndex, onSelectGathering, onFocusCoordinate]);
+
+  // 자동 회차 넘김 애니메이션 타이머
+  useEffect(() => {
+    if (autoInterval === 0 || activeGatherings.length <= 1) return;
+
+    const timer = setInterval(() => {
+      handleNextMeeting();
+    }, autoInterval * 1000);
+
+    return () => clearInterval(timer);
+  }, [autoInterval, activeGatherings.length, handleNextMeeting]);
+
+  // 자동 넘김 간격 순환 토글: 2초(기본) -> 3초 -> 0초(정지) -> 1초 -> 2초
+  const handleCycleInterval = () => {
+    setAutoInterval((prev) => {
+      if (prev === 2) return 3;
+      if (prev === 3) return 0;
+      if (prev === 0) return 1;
+      return 2; // prev === 1 -> 2
+    });
   };
+
+  if (!isOpen) return null;
 
   const firstDayOfWeek = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -115,22 +147,22 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     : (activeGatherings.length > 0 ? '•' : '-');
 
   return (
-    <div className="absolute top-16 left-3 md:left-4 z-30 w-64 sm:w-72 glass-panel rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 animate-in fade-in zoom-in-95">
+    <div className="absolute top-16 left-3 md:left-4 z-30 w-72 sm:w-80 glass-panel rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 animate-in fade-in zoom-in-95 select-none">
       {/* 헤더 */}
-      <div className="px-3 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1 rounded-lg bg-pink-500/20 text-pink-400">
+      <div className="px-3 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+          <div className="p-1 rounded-lg bg-pink-500/20 text-pink-400 shrink-0">
             <CalendarIcon className="w-3.5 h-3.5" />
           </div>
-          <div>
-            <h3 className="text-xs font-black font-mono text-white tracking-tight">
-              {year}.{month + 1}
+          <div className="min-w-0">
+            <h3 className="text-xs font-black font-mono text-white tracking-tight truncate" title={`${year}.${month + 1}${selectedDay !== null ? `.${selectedDay}` : ''}`}>
+              {year}.{month + 1}{selectedDay !== null ? `.${selectedDay}` : ''}
             </h3>
           </div>
         </div>
 
-        {/* 이전 모임 (왼쪽 화살표) / 회차 (N만, 붉은색) / 다음 모임 (오른쪽 화살표) */}
-        <div className="flex items-center gap-1">
+        {/* 이전 모임 (왼쪽 화살표) / 회차 (N만, 붉은색) / 다음 모임 (오른쪽 화살표) / 자동 넘김 토글 */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={handlePrevMeeting}
             className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition"
@@ -152,6 +184,24 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
             title="다음 모임"
           >
             <ChevronRight className="w-4 h-4" />
+          </button>
+
+          {/* 자동 넘김 애니메이션 간격 순환 토글 버튼 ("1초" -> "2초"(기본) -> "3초" -> "0초" -> "1초") */}
+          <button
+            onClick={handleCycleInterval}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold transition flex items-center gap-0.5 ${
+              autoInterval === 0
+                ? 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-700/80'
+                : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+            }`}
+            title={`자동 회차 넘김: ${autoInterval === 0 ? '정지 (클릭 시 1초)' : `${autoInterval}초 (클릭 시 변경)`}`}
+          >
+            {autoInterval > 0 ? (
+              <Play className="w-2.5 h-2.5 fill-current" />
+            ) : (
+              <Pause className="w-2.5 h-2.5" />
+            )}
+            <span>{autoInterval}초</span>
           </button>
 
           <button

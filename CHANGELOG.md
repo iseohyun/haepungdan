@@ -5,6 +5,19 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.7] - 2026-08-21
+
+### Added & Improved
+- **Clean Map Marker Pins (Removed Overlaid Labels) (`MapViewer.tsx`)**:
+  - Removed overlaid round number text boxes, dashed connecting lines, and label font size controls.
+  - Rendered clean, responsive pin points for gatherings on the map for maximum clarity.
+- **Detailed Event Date in Calendar Header & Default Collapsed State (`CalendarWidget.tsx`)**:
+  - Displayed full date `{year}.{month + 1}.{day}` of the currently selected gathering in the calendar header.
+  - Set the calendar widget to default to a collapsed (slim bar) view to prevent obstructing the map.
+- **Auto Meeting Cycle Animation (`CalendarWidget.tsx`)**:
+  - Added an auto-play timer that automatically cycles through gatherings in round order.
+  - Cycle interval toggle: **"2s (Default)" → "3s" → "0s (Stop)" → "1s" → "2s"**.
+
 ## [0.5.6] - 2026-08-21
 
 ### Added & Improved
