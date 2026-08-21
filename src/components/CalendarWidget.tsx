@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Gathering } from '../types';
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, MapPin, Minimize2, Maximize2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Minimize2, Maximize2, X } from 'lucide-react';
 
 interface CalendarWidgetProps {
   isOpen: boolean;
@@ -239,69 +239,6 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
               );
             })}
           </div>
-
-          {/* 이달의 모임 간략 목록 */}
-          {gatheringsInMonth.length > 0 && (
-            <div className="mt-2.5 pt-2.5 border-t border-slate-800/80 space-y-1.5 max-h-32 overflow-y-auto pr-1">
-              {gatheringsInMonth.map((g) => {
-                const gDate = new Date(g.dateTime);
-                const isSelected = g.id === selectedGatheringId;
-                const roundText = g.roundNumber !== undefined
-                  ? (g.roundNumber === 0 ? '번개' : `${g.roundNumber}차`)
-                  : '모임';
-
-                return (
-                  <button
-                    key={g.id}
-                    onClick={() => {
-                      onSelectGathering(g);
-                      if (onFocusCoordinate) {
-                        onFocusCoordinate(g.position.x_pct, g.position.y_pct);
-                      }
-                    }}
-                    className={`w-full text-left p-1.5 rounded-lg text-xs transition flex items-center justify-between ${
-                      isSelected
-                        ? 'bg-pink-600/30 border border-pink-500/60 text-white ring-1 ring-pink-400/40'
-                        : 'bg-slate-800/40 hover:bg-slate-800 text-slate-300 border border-transparent'
-                    }`}
-                  >
-                    <div className="truncate mr-1.5">
-                      <div className="font-medium text-[11px] truncate flex items-center gap-1">
-                        <span className={`px-1 py-0.2 text-[9px] font-bold rounded ${isSelected ? 'bg-red-500 text-white' : 'bg-red-500/20 text-red-300'}`}>
-                          {roundText}
-                        </span>
-                        <span className="truncate">{g.title}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-2.5 h-2.5 text-pink-400" />
-                        <span>{g.locationName}</span> ·{' '}
-                        <span>{gDate.getMonth() + 1}/{gDate.getDate()}</span>
-                      </div>
-                    </div>
-                    <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
-                        g.status === 'RECRUITING'
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : g.status === 'PROPOSED'
-                          ? 'bg-amber-500/20 text-amber-300'
-                          : g.status === 'CONFIRMED'
-                          ? 'bg-sky-500/20 text-sky-300'
-                          : 'bg-slate-500/20 text-slate-300'
-                      }`}
-                    >
-                      {g.status === 'RECRUITING'
-                        ? '모집중'
-                        : g.status === 'PROPOSED'
-                        ? '제안'
-                        : g.status === 'CONFIRMED'
-                        ? '확정'
-                        : '완료'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
       )}
     </div>
