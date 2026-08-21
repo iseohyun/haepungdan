@@ -5,6 +5,16 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.6] - 2026-08-21
+
+### Added & Improved
+- **Lock-Gated Label Dragging & Responsive (Web/Mobile) Label Offsets (`types/index.ts`, `MapViewer.tsx`)**:
+  - Restructured marker label dragging so that it only activates when the admin calibration lock is unlocked (`isCalibrationUnlocked = true`).
+  - Implemented independent label offset persistence for Web (`labelOffset`) and Mobile (`labelOffsetMobile`) views.
+- **Default UI States & Cleanup (`App.tsx`, `TopBar.tsx`)**:
+  - Configured default UI state: **Calendar ON**, **Map Controls OFF**, **GIS Coordinates Overlay OFF**.
+  - Removed the mobile quick "Create Gathering" floating bar from the TopBar, consolidating creation actions into the Sidebar.
+
 ## [0.5.5] - 2026-08-21
 
 ### Added & Improved

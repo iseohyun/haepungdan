@@ -46,6 +46,17 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
   const [currentScale, setCurrentScale] = useState<number>(1.0);
   const [labelFontSize, setLabelFontSize] = useState<number>(18); // 기본 font-size: 18px
 
+  // 화면 환경 감지 (모바일 < 768px vs 웹/PC >= 768px)
+  const [isMobileView, setIsMobileView] = useState<boolean>(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleCheckMobile = () => {
+      setIsMobileView(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleCheckMobile);
+    return () => window.removeEventListener('resize', handleCheckMobile);
+  }, []);
+
   // 관리자 전용: 마커 보정 (자물쇠 모드)
   const [isCalibrationUnlocked, setIsCalibrationUnlocked] = useState<boolean>(false);
   const [calibrationOffset, setCalibrationOffset] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
@@ -272,12 +283,16 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
         const { hasMoved, latestDx, latestDy, gatherings: groupGatherings } = draggingRef.current;
         draggingRef.current = null;
 
-        // 드래그가 실제로 일어났을 때만 DB에 영구 저장
+        // 드래그가 실제로 일어났을 때만 DB에 영구 저장 (웹/모바일 환경별 독립 저장)
         if (hasMoved && onUpdateGathering && groupGatherings.length > 0) {
           const offsetToSave = { dx: latestDx, dy: latestDy };
+          const updatePayload = isMobileView
+            ? { labelOffsetMobile: offsetToSave }
+            : { labelOffset: offsetToSave };
+
           for (const g of groupGatherings) {
             try {
-              await onUpdateGathering(g.id, { labelOffset: offsetToSave });
+              await onUpdateGathering(g.id, updatePayload);
             } catch (err) {
               console.error('Failed to persist label offset to DB:', err);
             }
@@ -558,8 +573,10 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
           const currentPosX = group.x_pct + calibShiftPctX;
           const currentPosY = group.y_pct + calibShiftPctY;
 
-          // 1. 기준 오프셋 (드래그 중 > DB에 저장된 오프셋 > 자동 계산 오프셋)
-          const storedOffset = group.gatherings.find((g) => g.labelOffset)?.labelOffset;
+          // 1. 기준 오프셋 (드래그 중 > DB에 저장된 환경별 오프셋 > 자동 계산 기본 오프셋)
+          const storedOffset = isMobileView
+            ? (group.gatherings.find((g) => g.labelOffsetMobile)?.labelOffsetMobile ?? group.gatherings.find((g) => g.labelOffset)?.labelOffset)
+            : (group.gatherings.find((g) => g.labelOffset)?.labelOffset ?? group.gatherings.find((g) => g.labelOffsetMobile)?.labelOffsetMobile);
           const rawOffset = customOffsets[group.groupKey] ?? storedOffset ?? getDefaultLabelOffset(group);
 
           // 2. 레이블 border와 마커 사이의 기하학적 최소/최대 거리 계산:
@@ -676,10 +693,11 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   />
                 </svg>
 
-                {/* 드래그 가능한 레이블 (배경/테두리 50% 투명도, 글자는 100% 완전 불투명) */}
+                {/* 드래그 가능한 레이블 (자물쇠 해제 시에만 드래그 가능, 배경/테두리 50% 투명도, 글자는 100% 완전 불투명) */}
                 <div
                   onPointerDown={(e) => {
                     e.stopPropagation();
+                    if (!isCalibrationUnlocked) return;
                     if (e.button !== 0 && e.pointerType === 'mouse') return;
                     draggingRef.current = {
                       groupKey: group.groupKey,
@@ -695,6 +713,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
+                    if (!isCalibrationUnlocked) return;
                     if (e.button !== 0) return;
                     draggingRef.current = {
                       groupKey: group.groupKey,
@@ -710,6 +729,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   }}
                   onTouchStart={(e) => {
                     e.stopPropagation();
+                    if (!isCalibrationUnlocked) return;
                     if (e.touches.length > 0) {
                       draggingRef.current = {
                         groupKey: group.groupKey,
@@ -732,14 +752,18 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                     whiteSpace: 'nowrap',
                     fontSize: `${labelFontSize}px`,
                   }}
-                  className={`panzoom-exclude px-2 py-0.5 rounded-lg shadow-lg border flex items-center gap-1 font-mono font-black select-none cursor-move backdrop-blur-xs transition-colors ${
+                  className={`panzoom-exclude px-2 py-0.5 rounded-lg shadow-lg border flex items-center gap-1 font-mono font-black select-none backdrop-blur-xs transition-all ${
+                    isCalibrationUnlocked
+                      ? 'cursor-move ring-2 ring-amber-400/80 animate-pulse'
+                      : 'cursor-pointer'
+                  } ${
                     isSelected
                       ? 'bg-slate-900/50 border-red-500/50 ring-1 ring-red-400/30'
                       : isRecruiting
                       ? 'bg-slate-900/50 border-emerald-500/50'
                       : 'bg-slate-900/50 border-slate-700/50 hover:border-slate-500/60'
                   }`}
-                  title="드래그하여 레이블 위치 이동 가능"
+                  title={isCalibrationUnlocked ? '드래그하여 레이블 위치 이동 가능' : '클릭하여 모임 선택'}
                 >
                   {roundNumbers.length > 0 ? (
                     roundNumbers.map((rn, rIdx) => {

@@ -38,7 +38,8 @@ export interface Gathering {
   createdByName: string;       // 작성자 이름
   createdAt: string;           // 생성 일시
   updatedAt: string;           // 마지막 수정 일시 (증분 동기화 기준)
-  labelOffset?: { dx: number; dy: number }; // 지도 위 커스텀 레이블 상대 좌표 오프셋 (px)
+  labelOffset?: { dx: number; dy: number }; // 지도 위 커스텀 레이블 상대 좌표 오프셋 (웹/PC, px)
+  labelOffsetMobile?: { dx: number; dy: number }; // 지도 위 커스텀 레이블 상대 좌표 오프셋 (모바일 전용, px)
   isDeleted?: boolean;         // 소프트 삭제 플래그
 }
 

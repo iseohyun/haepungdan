@@ -38,11 +38,11 @@ export const App: React.FC = () => {
     runInitialSync();
   }, []);
 
-  // UI 상태 관리
+  // UI 상태 관리 (기본값: 달력 on, 지도 컨트롤러 off, GIS 위경도 off)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
-  const [isMapControlsOpen, setIsMapControlsOpen] = useState(true);
-  const [isGisOverlayOpen, setIsGisOverlayOpen] = useState(true);
+  const [isMapControlsOpen, setIsMapControlsOpen] = useState(false);
+  const [isGisOverlayOpen, setIsGisOverlayOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState<boolean>(
     () => localStorage.getItem('haepungdan_theme') !== 'light'
   );
@@ -234,7 +234,6 @@ export const App: React.FC = () => {
         isGisOverlayOpen={isGisOverlayOpen}
         onToggleTheme={() => setIsDarkMode((prev) => !prev)}
         isDarkMode={isDarkMode}
-        onOpenCreateModal={() => setIsCreateModalOpen(true)}
       />
 
       {/* 2. 좌측 네비게이션 바 (모바일 95vw / 데스크톱 w-96) */}

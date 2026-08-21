@@ -1,6 +1,5 @@
 import React from 'react';
-import { Menu, Calendar as CalendarIcon, Gamepad2, Crosshair, Sun, Moon, PlusCircle } from 'lucide-react';
-import { useAuth } from '../../context/AuthContext';
+import { Menu, Calendar as CalendarIcon, Gamepad2, Crosshair, Sun, Moon } from 'lucide-react';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
@@ -13,7 +12,6 @@ interface TopBarProps {
   isGisOverlayOpen?: boolean;
   onToggleTheme?: () => void;
   isDarkMode?: boolean;
-  onOpenCreateModal: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -27,9 +25,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   isGisOverlayOpen = true,
   onToggleTheme,
   isDarkMode = true,
-  onOpenCreateModal,
 }) => {
-  const { canCreateGathering, canProposeGathering } = useAuth();
 
   // 통일된 버튼 스타일 클래스 생성기
   const getButtonClass = (isActive: boolean) =>
@@ -92,19 +88,6 @@ export const TopBar: React.FC<TopBarProps> = ({
             title={isDarkMode ? '화이트(라이트) 모드로 전환' : '다크 모드로 전환'}
           >
             {isDarkMode ? <Moon className="w-4 h-4 text-slate-300" /> : <Sun className="w-4 h-4 text-amber-400" />}
-          </button>
-        )}
-      </div>
-
-      {/* 우측 퀵 컨트롤 (모바일 전용 새 모임 개설) */}
-      <div className="pointer-events-auto flex items-center gap-1.5 glass-panel p-1.5 rounded-2xl shadow-xl md:hidden">
-        {(canCreateGathering || canProposeGathering) && (
-          <button
-            onClick={onOpenCreateModal}
-            className="p-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white transition shadow-md"
-            title="새 모임 개설/제안"
-          >
-            <PlusCircle className="w-4 h-4" />
           </button>
         )}
       </div>
