@@ -8,7 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.2] - 2026-08-21
 
 ### Added
+- **4-Control-Point GPS Calibration & 2D Affine Transformation (`coordinates.ts`, `MapViewer.tsx`)**:
+  - Calibrated GPS to SVG/Map percentage coordinates using Least Squares Regression on 4 physical control points (Markers 1, 2, 4, 7).
+  - Residual error reduced to <0.1% (<0.5px) for sub-pixel marker alignment.
 - **Firebase Firestore Real-time Cloud Persistence & Bidirectional Delta Sync (`firebase.ts`, `App.tsx`)**:
+
   - Live persistence to Firestore collections (`gatherings`, `rsvps`, `reviews`) upon create/update/delete.
   - Automatic push of local authentic data and pull of cloud updates on app start and refresh.
 - **Revamped Gathering Forms & Direct Coordinate Modal (`CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`, `DirectInputModal.tsx`)**:

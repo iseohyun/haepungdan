@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 import { Gathering } from '../types';
-import { percentToGps } from '../utils/coordinates';
+import { percentToGps, gpsToPercent } from '../utils/coordinates';
+
 import {
   ZoomIn,
   ZoomOut,
@@ -217,6 +218,9 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
           const isSelected = g.id === selectedGatheringId;
           const isRecruiting = g.status === 'RECRUITING';
           const displayNumber = g.roundNumber !== undefined ? g.roundNumber : '•';
+          const markerPos = (g.position?.lat && g.position?.lng)
+            ? gpsToPercent(g.position.lat, g.position.lng)
+            : { x_pct: g.position?.x_pct ?? 50, y_pct: g.position?.y_pct ?? 50 };
 
           return (
             <div
@@ -226,11 +230,12 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                 onSelectGathering(g);
               }}
               style={{
-                left: `${g.position.x_pct}%`,
-                top: `${g.position.y_pct}%`,
+                left: `${markerPos.x_pct}%`,
+                top: `${markerPos.y_pct}%`,
               }}
               className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer z-15 group transition-transform duration-200 hover:scale-125"
             >
+
               {/* 모집 중일 때 펄스 링 */}
               {isRecruiting && (
                 <div className="absolute -inset-1.5 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />

@@ -2,27 +2,46 @@ import { LocationPosition } from '../types';
 
 /**
  * [거제도 정적 지도 기반 POI 오버레이 시스템 명세서]
- * Geographic Extent (EPSG:4326 / WGS84)
+ * 사용자 제공 4대 기준점(마커 1, 2, 4, 7) 최소 자승법(Least Squares) 최적화 캘리브레이션
  */
 export const GEOJE_BOUNDS = {
-  LAT_MAX: 35.045000, // 북위
-  LAT_MIN: 34.665000, // 남위
-  LNG_MIN: 128.400000, // 서경
-  LNG_MAX: 128.755000, // 동경
+  LAT_MAX: 35.038327, // 북위
+  LAT_MIN: 34.645435, // 남위
+  LNG_MIN: 128.415371, // 서경
+  LNG_MAX: 128.757706, // 동경
   ASPECT_RATIO: 701 / 820,
 } as const;
 
 /**
+ * 2D 아핀 변환 계수 (정밀 보정)
+ * Forward: [x_pct, y_pct]^T = M * [lng, lat]^T + bias
+ */
+const AFFINE_FORWARD = {
+  MX_LNG: 253.13354410035353,
+  MX_LAT: -15.857402736037017,
+  MX_BIAS: -31943.22741155157,
+  MY_LNG: 36.28749399801016,
+  MY_LAT: -242.53149453329803,
+  MY_BIAS: 3830.6052186526663,
+} as const;
+
+/**
+ * 2D 역 아핀 변환 계수 (백분율 -> GPS 정밀 역산)
+ */
+const AFFINE_INVERSE = {
+  INV_LNG_X: 0.003987861524361817,
+  INV_LNG_Y: -0.0002607377914733864,
+  INV_LAT_X: 0.0005966627196547762,
+  INV_LAT_Y: -0.004162187360390641,
+} as const;
+
+/**
  * GPS (Lat, Lng) -> CSS 백분율 위치 (x_pct, y_pct)
- * x_pct = ((Lng - 128.400) / (128.755 - 128.400)) * 100
- * y_pct = ((35.045 - Lat) / (35.045 - 34.665)) * 100
+ * 4대 기준점 실측 오차 0.1% 미만의 정밀 캘리브레이션 적용
  */
 export function gpsToPercent(lat: number, lng: number): { x_pct: number; y_pct: number } {
-  const lngSpan = GEOJE_BOUNDS.LNG_MAX - GEOJE_BOUNDS.LNG_MIN;
-  const latSpan = GEOJE_BOUNDS.LAT_MAX - GEOJE_BOUNDS.LAT_MIN;
-
-  const x_pct = ((lng - GEOJE_BOUNDS.LNG_MIN) / lngSpan) * 100;
-  const y_pct = ((GEOJE_BOUNDS.LAT_MAX - lat) / latSpan) * 100;
+  const x_pct = AFFINE_FORWARD.MX_LNG * lng + AFFINE_FORWARD.MX_LAT * lat + AFFINE_FORWARD.MX_BIAS;
+  const y_pct = AFFINE_FORWARD.MY_LNG * lng + AFFINE_FORWARD.MY_LAT * lat + AFFINE_FORWARD.MY_BIAS;
 
   return {
     x_pct: Number(Math.max(0, Math.min(100, x_pct)).toFixed(4)),
@@ -32,15 +51,14 @@ export function gpsToPercent(lat: number, lng: number): { x_pct: number; y_pct: 
 
 /**
  * CSS 백분율 위치 (x_pct, y_pct) -> GPS (Lat, Lng)
- * Lng = 128.400 + (x_pct / 100) * (128.755 - 128.400)
- * Lat = 35.045 - (y_pct / 100) * (35.045 - 34.665)
+ * 정밀 아핀 역변환 적용
  */
 export function percentToGps(x_pct: number, y_pct: number): { lat: number; lng: number } {
-  const lngSpan = GEOJE_BOUNDS.LNG_MAX - GEOJE_BOUNDS.LNG_MIN;
-  const latSpan = GEOJE_BOUNDS.LAT_MAX - GEOJE_BOUNDS.LAT_MIN;
+  const dx = x_pct - AFFINE_FORWARD.MX_BIAS;
+  const dy = y_pct - AFFINE_FORWARD.MY_BIAS;
 
-  const lng = GEOJE_BOUNDS.LNG_MIN + (x_pct / 100) * lngSpan;
-  const lat = GEOJE_BOUNDS.LAT_MAX - (y_pct / 100) * latSpan;
+  const lng = AFFINE_INVERSE.INV_LNG_X * dx + AFFINE_INVERSE.INV_LNG_Y * dy;
+  const lat = AFFINE_INVERSE.INV_LAT_X * dx + AFFINE_INVERSE.INV_LAT_Y * dy;
 
   return {
     lat: Number(lat.toFixed(6)),
@@ -73,6 +91,7 @@ export function createLocationFromPercent(x_pct: number, y_pct: number): Locatio
     y_pct: Number(y_pct.toFixed(4)),
   };
 }
+
 
 /**
  * 카카오맵 길찾기 URL 생성

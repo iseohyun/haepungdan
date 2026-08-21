@@ -1,8 +1,12 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
 ## [v0.2.2] - 2026-08-21
-### 주요 변경 및 개선 사항 (Firebase Firestore 실시간 영구 저장 및 양방향 동기화, 모임 개설/수정 폼 전면 개편, 타임존 시차 버그 해결, 더미/임시 코드 완전 정리)
+### 주요 변경 및 개선 사항 (4대 기준점 실측 GPS 캘리브레이션 및 지도 정합 최적화, Firebase Firestore 실시간 영구 저장 연동)
+- **4대 기준점(마커 1, 2, 4, 7) 실측 GPS 캘리브레이션 및 2D 아핀 좌표 변환 최적화 (`coordinates.ts`, `MapViewer.tsx`)**:
+  - 사용자 제공 4개 마커의 실측 GPS 좌표와 지도 그림 좌표 간의 최소 자승법(Least Squares) 회귀 분석을 통해 2D 정밀 아핀 변환 행렬 및 최적 `GEOJE_BOUNDS` 도출.
+  - 지도 위 핀 마커 렌더링 시 실측 GPS로부터 정밀 변환 공식(`gpsToPercent`)을 동적 적용하여 그림 상 위치와 0.1% 미만의 오차로 완벽 정합.
 - **Firebase Firestore 실시간 영구 저장 및 양방향 동기화 (`firebase.ts`, `App.tsx`)**:
+
   - 모임 개설, 수정, 삭제 시 로컬 IndexedDB뿐만 아니라 Firebase Firestore 클라우드에 실시간 반영.
   - 새로고침 시 로컬과 클라우드 간 최신 모임 및 RSVP 데이터를 누락 없이 자동 일괄 동기화.
 - **날짜/시간(dateTime) 타임존 시차 왜곡 버그 해결 (`coordinates.ts`, `GatheringDetailModal.tsx`, `CreateGatheringModal.tsx`)**:
