@@ -1,5 +1,15 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.4.4] - 2026-08-21
+### 주요 변경 및 개선 사항 (지정주소 마스터 단일화 및 모임 참조 아키텍처 구축, 과거 더미 데이터 전면 삭제)
+- **지정주소 마스터(`locationPresets`) 단일 기준(Single Source of Truth) 확립 (`types/index.ts`, `CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`)**:
+  - `Gathering`에 `locationPresetId` 필드를 도입하여 모임이 마스터 지정주소를 직접 참조하도록 개편.
+  - 지정주소 관리에서 주소나 좌표를 수정하면 해당 장소를 사용하는 모든 모임의 내비게이션 주소가 즉시 일괄 최신화.
+  - 모임 개설/수정 화면의 복잡한 장소 병합 연산을 제거하고 `locationPresets`를 직접 구독하도록 단순화.
+- **불필요한 DB 시딩 코드 제거 및 과거 더미 데이터 전면 영구 삭제 (`db.ts`, `firebase.ts`)**:
+  - `db.ts`의 `seedInitialData()`에서 모임 목록을 긁어 억지 ID(`loc_...`)를 생성하던 자동 마이그레이션 코드 완전 삭제.
+  - 과거 테스트용 더미 데이터('매미성', '바람의 언덕', '도장포' 등)를 로컬 IndexedDB 및 Firebase Firestore 클라우드에서 일괄 영구 삭제하는 클린업 로직 적용.
+
 ## [v0.4.3] - 2026-08-21
 ### 주요 변경 및 개선 사항 (티맵 모바일 전용 연동 고도화, 안드로이드 Intent 및 iOS Scheme 지원, PC 완전 비활성화)
 - **티맵(TMAP) 모바일 앱 연동 및 인텐트 스킴 구현 (`coordinates.ts`, `GatheringDetailModal.tsx`)**:

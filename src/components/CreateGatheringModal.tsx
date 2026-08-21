@@ -56,68 +56,8 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     return validRounds.length > 0 ? Math.max(...validRounds) + 1 : 1;
   }, [allGatherings]);
 
-  // 등록된 실제 모임 DB + 지정주소(locationPresets) 기반 집결위치 목록 추출
-  const availableLocations = useMemo(() => {
-    const map = new Map<string, {
-      id: string;
-      name: string;
-      detail?: string;
-      address?: string;
-      roadAddress?: string;
-      kakaoAddress?: string;
-      naverAddress?: string;
-      tmapAddress?: string;
-      lat: number;
-      lng: number;
-      position: LocationPosition;
-    }>();
-
-    // 1. 지정주소 프리셋 우선 등록
-    allPresets.forEach((p) => {
-      if (p.name && p.position) {
-        const key = `preset_${p.id}`;
-        map.set(key, {
-          id: p.id,
-          name: p.name,
-          detail: p.detail,
-          address: p.address,
-          roadAddress: p.roadAddress,
-          kakaoAddress: p.kakaoAddress,
-          naverAddress: p.naverAddress,
-          tmapAddress: p.tmapAddress,
-          lat: p.lat,
-          lng: p.lng,
-          position: p.position,
-        });
-      }
-    });
-
-    // 2. 모임 DB의 집결위치 보강 등록
-    allGatherings.forEach((g) => {
-      if (!g.isDeleted && g.locationName && g.position) {
-        const key = `${g.locationName}___${g.locationDetail || ''}___${g.position.lat.toFixed(5)}___${g.position.lng.toFixed(5)}`;
-        if (!map.has(key)) {
-          map.set(key, {
-            id: `gat_${g.id}`,
-            name: g.locationName,
-            detail: g.locationDetail,
-            address: g.address,
-            roadAddress: g.roadAddress,
-            kakaoAddress: g.kakaoAddress,
-            naverAddress: g.naverAddress,
-            tmapAddress: g.tmapAddress,
-            lat: g.position.lat,
-            lng: g.position.lng,
-            position: g.position,
-          });
-        }
-      }
-    });
-
-    return Array.from(map.values());
-  }, [allPresets, allGatherings]);
-
-
+  // 지정주소 마스터 목록을 그대로 집결위치 목록으로 사용
+  const availableLocations = allPresets;
 
   // 직접 입력 모달 표시 여부
   const [showDirectInputModal, setShowDirectInputModal] = useState(false);
@@ -128,6 +68,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
   const [selectedDate, setSelectedDate] = useState('2026-09-19');
   const [selectedTime, setSelectedTime] = useState('06:00');
   const [status, setStatus] = useState<GatheringStatus>('CONFIRMED');
+  const [locationPresetId, setLocationPresetId] = useState<string | undefined>(undefined);
   const [locationName, setLocationName] = useState('');
   const [locationDetail, setLocationDetail] = useState('');
   const [address, setAddress] = useState('');
@@ -169,10 +110,12 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
   const handleDetailSelect = (val: string) => {
     setSelectedDetailId(val);
     if (val === 'direct') {
+      setLocationPresetId(undefined);
       setShowDirectInputModal(true);
       return;
     }
     if (val === '') {
+      setLocationPresetId(undefined);
       setLocationName('');
       setLocationDetail('');
       setAddress('');
@@ -186,6 +129,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     // DB에서 선택
     const found = availableLocations.find((loc) => loc.id === val);
     if (found) {
+      setLocationPresetId(found.id);
       setLocationName(found.name);
       setLocationDetail(found.detail || '');
       setAddress(found.address || '');
@@ -199,6 +143,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
 
   // 직접 입력 모달 확인
   const handleDirectInputConfirm = (detail: string, position: LocationPosition) => {
+    setLocationPresetId(undefined);
     setLocationDetail(detail);
     setCurrentPosition(position);
     setShowDirectInputModal(false);
@@ -243,6 +188,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
       title: finalTitle,
       status,
       dateTime: isoDateTime,
+      locationPresetId,
       locationName: locationName.trim(),
       locationDetail: locationDetail.trim() || undefined,
       address: address.trim() || undefined,

@@ -5,6 +5,17 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-08-21
+
+### Added & Improved
+- **Single Source of Truth for Location Presets (`types/index.ts`, `CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`)**:
+  - Established `locationPresets` as the master table; gatherings now reference `locationPresetId` directly.
+  - Updating a preset automatically and instantaneously updates all navigation links across all gatherings.
+  - Simplified location selection by removing complex merge queries and querying `allPresets` directly.
+- **Removed Forced Seeding & Purged Legacy Dummy Data (`db.ts`, `firebase.ts`)**:
+  - Removed code that forcefully generated `loc_...` presets from gatherings list.
+  - Added cleanup routines to purge legacy dummy data ('매미성', '바람의 언덕', etc.) from both local IndexedDB and Firebase Firestore.
+
 ## [0.4.3] - 2026-08-21
 
 ### Added & Improved

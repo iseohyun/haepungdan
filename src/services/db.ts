@@ -32,39 +32,16 @@ export class HaepungdanDatabase extends Dexie {
       await this.users.bulkAdd(Object.values(MOCK_USERS));
     }
 
-    // locationPresets 초기 데이터 마이그레이션 (gatherings에 등록된 위치들 추출)
-    const presetCount = await this.locationPresets.count();
-    if (presetCount === 0) {
-      const allGatherings = await this.gatherings.toArray();
-      const presetsToInsert: LocationPreset[] = [];
-      const seenKeys = new Set<string>();
-
-      for (const g of allGatherings) {
-        if (!g.isDeleted && g.locationName && g.position) {
-          const locKey = `loc_${g.locationName.trim()}_${g.position.lat.toFixed(4)}_${g.position.lng.toFixed(4)}`;
-          if (!seenKeys.has(locKey)) {
-            seenKeys.add(locKey);
-            presetsToInsert.push({
-              id: locKey,
-              name: g.locationName,
-              detail: g.locationDetail || '',
-              address: g.address || '',
-              roadAddress: g.roadAddress || '',
-              kakaoAddress: g.kakaoAddress || '',
-              naverAddress: g.naverAddress || '',
-              tmapAddress: g.tmapAddress || '',
-              lat: g.position.lat,
-              lng: g.position.lng,
-              position: g.position,
-              createdAt: g.createdAt || new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            });
-          }
-        }
-      }
-
-      if (presetsToInsert.length > 0) {
-        await this.locationPresets.bulkPut(presetsToInsert);
+    // 더미 데이터(매미성, 바람의 언덕 등) 로컬 IndexedDB에서 정리
+    const dummyKeywords = ['매미성', '바람의 언덕', '바람의언덕', '도장포'];
+    const localPresets = await this.locationPresets.toArray();
+    for (const p of localPresets) {
+      if (
+        dummyKeywords.some((k) => p.name?.includes(k) || p.detail?.includes(k)) ||
+        p.id.includes('maemi') ||
+        p.id.includes('wind')
+      ) {
+        await this.locationPresets.delete(p.id);
       }
     }
 

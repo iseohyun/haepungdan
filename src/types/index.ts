@@ -16,6 +16,7 @@ export interface Gathering {
   title: string;
   status: GatheringStatus;
   dateTime: string;            // ISO 8601 일시 (예: "2026-09-10T06:00:00+09:00")
+  locationPresetId?: string;   // 참조하는 지정주소 마스터 ID (선택 시)
   locationName: string;        // 장소명 (예: "구조라해수욕장")
   locationDetail?: string;     // 상세 주소 / 집결 장소
   address?: string;            // 대표 주소 (도로명 주소 등)

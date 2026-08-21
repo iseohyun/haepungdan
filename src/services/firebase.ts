@@ -355,13 +355,58 @@ class FirebaseService {
       console.warn('locationPresets pull skipped:', e);
     }
 
-    // 9. 동기화 타임스탬프 갱신
+    // 9. 더미 데이터(매미성, 바람의 언덕 등) 자동 정리
+    await this.cleanLegacyDummyData();
+
+    // 10. 동기화 타임스탬프 갱신
     await db.syncMeta.put({
       key: 'lastSyncTimestamp',
       value: now,
     });
 
     return { pushed: pushedCount, pulled: pulledCount };
+  }
+
+  /**
+   * 과거 테스트용 더미 데이터(매미성, 바람의 언덕 등) 클라우드 및 로컬 일괄 영구 삭제
+   */
+  async cleanLegacyDummyData(): Promise<void> {
+    const dummyKeywords = ['매미성', '바람의 언덕', '바람의언덕', '도장포'];
+
+    try {
+      // 1. locationPresets 정리
+      const localPresets = await db.locationPresets.toArray();
+      for (const p of localPresets) {
+        const isDummy =
+          dummyKeywords.some((k) => p.name?.includes(k) || p.detail?.includes(k)) ||
+          p.id.includes('maemi') ||
+          p.id.includes('wind');
+
+        if (isDummy) {
+          await db.locationPresets.delete(p.id);
+          if (this.firestore) {
+            await deleteDoc(doc(this.firestore, 'locationPresets', p.id)).catch(() => {});
+          }
+        }
+      }
+
+      // 2. gatherings 정리
+      const localGatherings = await db.gatherings.toArray();
+      for (const g of localGatherings) {
+        const isDummyGat = dummyKeywords.some(
+          (k) => g.title?.includes(k) || g.locationName?.includes(k) || g.locationDetail?.includes(k)
+        );
+
+        if (isDummyGat) {
+          await db.gatherings.delete(g.id);
+          if (this.firestore) {
+            await deleteDoc(doc(this.firestore, 'gatherings', g.id)).catch(() => {});
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('cleanLegacyDummyData error:', err);
+    }
   }
 }
 

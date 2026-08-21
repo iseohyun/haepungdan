@@ -70,71 +70,11 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const { currentUser, canRSVP, canWriteReview, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'info' | 'rsvp' | 'reviews'>('info');
 
-  // 등록된 실제 모임 DB 및 지정주소(locationPresets) DB 조회
-  const allGatherings = useLiveQuery(() => db.gatherings.toArray(), []) ?? [];
+  // 등록된 지정주소 마스터(locationPresets) DB 조회
   const allPresets = useLiveQuery(() => db.locationPresets.toArray(), []) ?? [];
 
-  // 등록된 실제 모임 DB + 지정주소(locationPresets) 기반 집결위치 목록 추출
-  const availableLocations = useMemo(() => {
-    const map = new Map<string, {
-      id: string;
-      name: string;
-      detail?: string;
-      address?: string;
-      roadAddress?: string;
-      kakaoAddress?: string;
-      naverAddress?: string;
-      tmapAddress?: string;
-      lat: number;
-      lng: number;
-      position: LocationPosition;
-    }>();
-
-    // 1. 지정주소 프리셋 우선 등록
-    allPresets.forEach((p) => {
-      if (p.name && p.position) {
-        const key = `preset_${p.id}`;
-        map.set(key, {
-          id: p.id,
-          name: p.name,
-          detail: p.detail,
-          address: p.address,
-          roadAddress: p.roadAddress,
-          kakaoAddress: p.kakaoAddress,
-          naverAddress: p.naverAddress,
-          tmapAddress: p.tmapAddress,
-          lat: p.lat,
-          lng: p.lng,
-          position: p.position,
-        });
-      }
-    });
-
-    // 2. 모임 DB의 집결위치 보강 등록
-    allGatherings.forEach((g) => {
-      if (!g.isDeleted && g.locationName && g.position) {
-        const key = `${g.locationName}___${g.locationDetail || ''}___${g.position.lat.toFixed(5)}___${g.position.lng.toFixed(5)}`;
-        if (!map.has(key)) {
-          map.set(key, {
-            id: `gat_${g.id}`,
-            name: g.locationName,
-            detail: g.locationDetail,
-            address: g.address,
-            roadAddress: g.roadAddress,
-            kakaoAddress: g.kakaoAddress,
-            naverAddress: g.naverAddress,
-            tmapAddress: g.tmapAddress,
-            lat: g.position.lat,
-            lng: g.position.lng,
-            position: g.position,
-          });
-        }
-      }
-    });
-
-    return Array.from(map.values());
-  }, [allPresets, allGatherings]);
-
+  // 지정주소 마스터 목록을 그대로 집결위치 목록으로 사용
+  const availableLocations = allPresets;
 
   // 모임 정보 수정 모드 상태 (타임존 왜곡 방지 파서 적용)
   const initialDateTime = useMemo(() => parseLocalDateTime(gathering.dateTime), [gathering.dateTime]);
@@ -145,7 +85,8 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const [editTime, setEditTime] = useState(initialDateTime.time);
 
   const [editStatus, setEditStatus] = useState<GatheringStatus>(gathering.status);
-  const [editLocationId, setEditLocationId] = useState<string>('custom');
+  const [editLocationPresetId, setEditLocationPresetId] = useState<string | undefined>(gathering.locationPresetId);
+  const [editLocationId, setEditLocationId] = useState<string>(gathering.locationPresetId || 'custom');
   const [editLocationName, setEditLocationName] = useState(gathering.locationName);
   const [editLocationDetail, setEditLocationDetail] = useState(gathering.locationDetail || '');
   const [editAddress, setEditAddress] = useState(gathering.address || '');
@@ -208,14 +149,19 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   // 수정 모드 집결위치 선택 핸들러
   const handleEditLocationSelect = (locId: string) => {
     setEditLocationId(locId);
-    if (locId === 'custom') return;
+    if (locId === 'custom') {
+      setEditLocationPresetId(undefined);
+      return;
+    }
     if (locId === 'direct') {
+      setEditLocationPresetId(undefined);
       setShowEditDirectModal(true);
       return;
     }
 
     const found = availableLocations.find((loc) => loc.id === locId);
     if (found) {
+      setEditLocationPresetId(found.id);
       setEditLocationName(found.name);
       setEditLocationDetail(found.detail || '');
       setEditAddress(found.address || '');
@@ -273,6 +219,7 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
           title: finalTitle,
           status: editStatus,
           dateTime: isoDateTime,
+          locationPresetId: editLocationPresetId,
           locationName: editLocationName.trim(),
           locationDetail: editLocationDetail.trim() || undefined,
           address: editAddress.trim() || undefined,
@@ -310,25 +257,27 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
 
   // 길찾기 및 위치 안내 (1. 해당 지도 주소 -> 2. 대표 주소 -> 3. GPS 정보)
   const locationInput = useMemo(() => {
-    // 1. 프리셋 DB에서 매칭되는 지정주소 찾기 (장소명 또는 좌표 기준)
-    const matchedPreset = allPresets.find(
-      (p) =>
-        (p.name && gathering.locationName && p.name.trim() === gathering.locationName.trim()) ||
-        (Math.abs(p.lat - gathering.position.lat) < 0.0005 && Math.abs(p.lng - gathering.position.lng) < 0.0005)
-    );
+    // 1. 지정주소 마스터 DB에서 우선 조회 (ID 기반 또는 장소명/좌표 기준)
+    const matchedPreset =
+      (gathering.locationPresetId ? allPresets.find((p) => p.id === gathering.locationPresetId) : undefined) ||
+      allPresets.find(
+        (p) =>
+          (p.name && gathering.locationName && p.name.trim() === gathering.locationName.trim()) ||
+          (Math.abs(p.lat - gathering.position.lat) < 0.0005 && Math.abs(p.lng - gathering.position.lng) < 0.0005)
+      );
 
     return {
-      lat: gathering.position.lat,
-      lng: gathering.position.lng,
-      locationName: gathering.locationName,
-      locationDetail: gathering.locationDetail || matchedPreset?.detail,
-      address: gathering.address || matchedPreset?.address,
-      roadAddress: gathering.roadAddress || matchedPreset?.roadAddress || matchedPreset?.address,
-      jibunAddress: gathering.jibunAddress || matchedPreset?.jibunAddress,
-      kakaoAddress: gathering.kakaoAddress || matchedPreset?.kakaoAddress,
-      naverAddress: gathering.naverAddress || matchedPreset?.naverAddress,
-      tmapAddress: gathering.tmapAddress || matchedPreset?.tmapAddress,
-      mapAddress: gathering.mapAddress || matchedPreset?.mapAddress,
+      lat: matchedPreset ? matchedPreset.lat : gathering.position.lat,
+      lng: matchedPreset ? matchedPreset.lng : gathering.position.lng,
+      locationName: matchedPreset ? matchedPreset.name : gathering.locationName,
+      locationDetail: matchedPreset?.detail || gathering.locationDetail,
+      address: matchedPreset?.address || gathering.address,
+      roadAddress: matchedPreset?.roadAddress || matchedPreset?.address || gathering.roadAddress,
+      jibunAddress: matchedPreset?.jibunAddress || gathering.jibunAddress,
+      kakaoAddress: matchedPreset?.kakaoAddress || gathering.kakaoAddress,
+      naverAddress: matchedPreset?.naverAddress || gathering.naverAddress,
+      tmapAddress: matchedPreset?.tmapAddress || gathering.tmapAddress,
+      mapAddress: matchedPreset?.mapAddress || gathering.mapAddress,
     };
   }, [gathering, allPresets]);
 
@@ -438,6 +387,7 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
       {showEditDirectModal && (
         <DirectInputModal
           onConfirm={(detail, position) => {
+            setEditLocationPresetId(undefined);
             setEditLocationDetail(detail);
             setEditPosition(position);
             setEditCoordError(null);
