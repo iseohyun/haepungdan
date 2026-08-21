@@ -21,6 +21,7 @@ import {
   Cloud,
   Settings,
   LogOut,
+  Navigation,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -33,6 +34,7 @@ interface SidebarProps {
   onOpenCreateModal: () => void;
   onOpenAdminModal?: () => void;
   onOpenFirebaseConfig?: () => void;
+  onOpenLocationPresets?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -45,6 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCreateModal,
   onOpenAdminModal,
   onOpenFirebaseConfig,
+  onOpenLocationPresets,
 }) => {
   const {
     currentUser,
@@ -381,6 +384,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                 )}
               </div>
+
+              {/* 지정주소(집결지) 관리 바로가기 */}
+              {onOpenLocationPresets && (
+                <div className="p-3.5 rounded-2xl glass-card border border-emerald-500/30 bg-emerald-950/20 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300">
+                    <MapPin className="w-4 h-4 text-emerald-400" />
+                    <span>지정주소(집결지) 관리</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    모임 장소별 지정주소(카카오/네이버/티맵), 대표 도로명주소 및 GPS 좌표를 등록, 수정, 삭제합니다.
+                  </p>
+                  <button
+                    onClick={() => {
+                      onOpenLocationPresets();
+                      if (window.innerWidth < 768) onClose();
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition flex items-center justify-center gap-1.5"
+                  >
+                    <Navigation className="w-3.5 h-3.5" />
+                    <span>지정주소 관리 및 수정/삭제 열기</span>
+                  </button>
+                </div>
+              )}
 
               {/* 관리자 회원 관리 센터 바로가기 (관리자 전용) */}
               {isAdmin && onOpenAdminModal && (

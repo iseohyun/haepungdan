@@ -3,7 +3,14 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Gathering, GatheringRSVP, GatheringReview, RSVPStatus, GatheringStatus, LocationPosition } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { db } from '../services/db';
-import { getKakaoMapUrl, getNaverMapUrl, getTMapUrl, parseLocalDateTime, formatToKoreanIso } from '../utils/coordinates';
+import {
+  getKakaoMapUrl,
+  getNaverMapUrl,
+  getTMapUrl,
+  resolveLocationGuide,
+  parseLocalDateTime,
+  formatToKoreanIso,
+} from '../utils/coordinates';
 import { compressImageToWebP } from '../utils/imageCompressor';
 import { VideoPlayerEmbed } from './media/VideoPlayerEmbed';
 import { MediaGallery } from './media/MediaGallery';
@@ -63,13 +70,47 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const { currentUser, canRSVP, canWriteReview, isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState<'info' | 'rsvp' | 'reviews'>('info');
 
-  // 등록된 실제 모임 DB 조회
+  // 등록된 실제 모임 DB 및 지정주소(locationPresets) DB 조회
   const allGatherings = useLiveQuery(() => db.gatherings.toArray(), []) ?? [];
+  const allPresets = useLiveQuery(() => db.locationPresets.toArray(), []) ?? [];
 
-  // 등록된 실제 모임 DB 기반 집결위치 목록 추출
+  // 등록된 실제 모임 DB + 지정주소(locationPresets) 기반 집결위치 목록 추출
   const availableLocations = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; detail?: string; lat: number; lng: number; position: LocationPosition }>();
+    const map = new Map<string, {
+      id: string;
+      name: string;
+      detail?: string;
+      address?: string;
+      roadAddress?: string;
+      kakaoAddress?: string;
+      naverAddress?: string;
+      tmapAddress?: string;
+      lat: number;
+      lng: number;
+      position: LocationPosition;
+    }>();
 
+    // 1. 지정주소 프리셋 우선 등록
+    allPresets.forEach((p) => {
+      if (p.name && p.position) {
+        const key = `preset_${p.id}`;
+        map.set(key, {
+          id: p.id,
+          name: p.name,
+          detail: p.detail,
+          address: p.address,
+          roadAddress: p.roadAddress,
+          kakaoAddress: p.kakaoAddress,
+          naverAddress: p.naverAddress,
+          tmapAddress: p.tmapAddress,
+          lat: p.lat,
+          lng: p.lng,
+          position: p.position,
+        });
+      }
+    });
+
+    // 2. 모임 DB의 집결위치 보강 등록
     allGatherings.forEach((g) => {
       if (!g.isDeleted && g.locationName && g.position) {
         const key = `${g.locationName}___${g.locationDetail || ''}___${g.position.lat.toFixed(5)}___${g.position.lng.toFixed(5)}`;
@@ -78,6 +119,11 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
             id: `gat_${g.id}`,
             name: g.locationName,
             detail: g.locationDetail,
+            address: g.address,
+            roadAddress: g.roadAddress,
+            kakaoAddress: g.kakaoAddress,
+            naverAddress: g.naverAddress,
+            tmapAddress: g.tmapAddress,
             lat: g.position.lat,
             lng: g.position.lng,
             position: g.position,
@@ -87,7 +133,7 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
     });
 
     return Array.from(map.values());
-  }, [allGatherings]);
+  }, [allPresets, allGatherings]);
 
 
   // 모임 정보 수정 모드 상태 (타임존 왜곡 방지 파서 적용)
@@ -102,6 +148,11 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const [editLocationId, setEditLocationId] = useState<string>('custom');
   const [editLocationName, setEditLocationName] = useState(gathering.locationName);
   const [editLocationDetail, setEditLocationDetail] = useState(gathering.locationDetail || '');
+  const [editAddress, setEditAddress] = useState(gathering.address || '');
+  const [editRoadAddress, setEditRoadAddress] = useState(gathering.roadAddress || '');
+  const [editKakaoAddress, setEditKakaoAddress] = useState(gathering.kakaoAddress || '');
+  const [editNaverAddress, setEditNaverAddress] = useState(gathering.naverAddress || '');
+  const [editTmapAddress, setEditTmapAddress] = useState(gathering.tmapAddress || '');
   const [editPosition, setEditPosition] = useState<LocationPosition>(gathering.position);
   const [editCoordError, setEditCoordError] = useState<string | null>(null);
   const [editDescription, setEditDescription] = useState(gathering.description);
@@ -167,6 +218,11 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
     if (found) {
       setEditLocationName(found.name);
       setEditLocationDetail(found.detail || '');
+      setEditAddress(found.address || '');
+      setEditRoadAddress(found.roadAddress || '');
+      setEditKakaoAddress(found.kakaoAddress || '');
+      setEditNaverAddress(found.naverAddress || '');
+      setEditTmapAddress(found.tmapAddress || '');
       setEditPosition(found.position);
       setEditCoordError(null);
     }
@@ -212,9 +268,6 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
       const isoDateTime = formatToKoreanIso(editDate, editTime);
 
       if (onUpdateGathering) {
-
-
-
         await onUpdateGathering(gathering.id, {
           roundNumber: editRoundNumber,
           title: finalTitle,
@@ -222,6 +275,11 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
           dateTime: isoDateTime,
           locationName: editLocationName.trim(),
           locationDetail: editLocationDetail.trim() || undefined,
+          address: editAddress.trim() || undefined,
+          roadAddress: editRoadAddress.trim() || undefined,
+          kakaoAddress: editKakaoAddress.trim() || undefined,
+          naverAddress: editNaverAddress.trim() || undefined,
+          tmapAddress: editTmapAddress.trim() || undefined,
           position: editPosition,
           description: editDescription.trim(),
           videoUrl: editVideoUrl.trim() || undefined,
@@ -250,10 +308,39 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
     ...reviews.flatMap((r) => r.images || []),
   ];
 
-  // 길찾기 및 마커 링크들
-  const kakaoUrl = getKakaoMapUrl(gathering.position.lat, gathering.position.lng, gathering.locationName);
-  const naverUrl = getNaverMapUrl(gathering.position.lat, gathering.position.lng, gathering.locationName);
-  const tmapUrl = getTMapUrl(gathering.position.lat, gathering.position.lng, gathering.locationName);
+  // 길찾기 및 위치 안내 (1. 해당 지도 주소 -> 2. 대표 주소 -> 3. GPS 정보)
+  const locationInput = useMemo(() => {
+    // 1. 프리셋 DB에서 매칭되는 지정주소 찾기 (장소명 또는 좌표 기준)
+    const matchedPreset = allPresets.find(
+      (p) =>
+        (p.name && gathering.locationName && p.name.trim() === gathering.locationName.trim()) ||
+        (Math.abs(p.lat - gathering.position.lat) < 0.0005 && Math.abs(p.lng - gathering.position.lng) < 0.0005)
+    );
+
+    return {
+      lat: gathering.position.lat,
+      lng: gathering.position.lng,
+      locationName: gathering.locationName,
+      locationDetail: gathering.locationDetail || matchedPreset?.detail,
+      address: gathering.address || matchedPreset?.address,
+      roadAddress: gathering.roadAddress || matchedPreset?.roadAddress || matchedPreset?.address,
+      jibunAddress: gathering.jibunAddress || matchedPreset?.jibunAddress,
+      kakaoAddress: gathering.kakaoAddress || matchedPreset?.kakaoAddress,
+      naverAddress: gathering.naverAddress || matchedPreset?.naverAddress,
+      tmapAddress: gathering.tmapAddress || matchedPreset?.tmapAddress,
+      mapAddress: gathering.mapAddress || matchedPreset?.mapAddress,
+    };
+  }, [gathering, allPresets]);
+
+  const isMobileDevice = useMemo(
+    () => /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+    []
+  );
+
+  const generalLocationGuide = useMemo(() => resolveLocationGuide(locationInput), [locationInput]);
+  const kakaoUrl = useMemo(() => getKakaoMapUrl(locationInput), [locationInput]);
+  const naverUrl = useMemo(() => getNaverMapUrl(locationInput), [locationInput]);
+  const tmapUrl = useMemo(() => getTMapUrl(locationInput), [locationInput]);
 
   const getStatusBadge = (status: Gathering['status']) => {
     switch (status) {
@@ -658,14 +745,23 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                       <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
                         <MapPin className="w-4 h-4" />
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-[11px] text-slate-400 font-semibold block">장소</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="text-[11px] text-slate-400 font-semibold">장소</span>
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {generalLocationGuide.badgeLabel}
+                          </span>
+                        </div>
                         <span className="text-xs font-bold text-white truncate block">
                           {gathering.locationName}
                         </span>
-                        {gathering.locationDetail && (
+                        {/* 1. 지도의 주소 / 2. 대표 주소 / 3. GPS 정보 출력 */}
+                        <span className="text-[10px] text-slate-300 block truncate font-medium mt-0.5">
+                          📍 {generalLocationGuide.displayAddress}
+                        </span>
+                        {gathering.locationDetail && gathering.locationDetail !== generalLocationGuide.displayAddress && (
                           <span className="text-[10px] text-slate-400 block truncate">
-                            {gathering.locationDetail}
+                            상세: {gathering.locationDetail}
                           </span>
                         )}
                       </div>
@@ -697,15 +793,27 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                         <span>네이버지도</span>
                         <ExternalLink className="w-3 h-3 opacity-70" />
                       </a>
-                      <a
-                        href={tmapUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="py-2 px-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center justify-center gap-1 transition"
-                      >
-                        <span>티맵(T map)</span>
-                        <ExternalLink className="w-3 h-3 opacity-70" />
-                      </a>
+                      {/* 티맵 (모바일 전용 / PC에서는 비활성화) */}
+                      {isMobileDevice ? (
+                        <a
+                          href={tmapUrl}
+                          className="py-2 px-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                        >
+                          <span>티맵(T map)</span>
+                          <ExternalLink className="w-3 h-3 opacity-70" />
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            alert('티맵(TMAP) 길찾기는 스마트폰 모바일 기기(앱)에서만 지원됩니다.\nPC 브라우저에서는 카카오맵 또는 네이버지도를 이용해주세요.');
+                          }}
+                          className="py-2 px-2 rounded-xl bg-slate-800/40 text-slate-500 border border-slate-700/50 text-xs font-medium flex items-center justify-center gap-1 cursor-not-allowed transition hover:border-slate-600"
+                          title="티맵 길찾기는 스마트폰(모바일 앱)에서만 지원됩니다."
+                        >
+                          <span>티맵 (모바일용)</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 

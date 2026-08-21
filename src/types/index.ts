@@ -18,6 +18,13 @@ export interface Gathering {
   dateTime: string;            // ISO 8601 일시 (예: "2026-09-10T06:00:00+09:00")
   locationName: string;        // 장소명 (예: "구조라해수욕장")
   locationDetail?: string;     // 상세 주소 / 집결 장소
+  address?: string;            // 대표 주소 (도로명 주소 등)
+  roadAddress?: string;        // 도로명 주소
+  jibunAddress?: string;       // 지번 주소
+  kakaoAddress?: string;       // 카카오맵 전용 주소
+  naverAddress?: string;       // 네이버 지도 전용 주소
+  tmapAddress?: string;        // 티맵 전용 주소
+  mapAddress?: { kakao?: string; naver?: string; tmap?: string; [key: string]: string | undefined } | string;
   position: LocationPosition;  // 지도 오버레이 및 GPS 위치
   description: string;         // 모임 설명 및 계획
   fee?: number;                // 참가비 (원, 0=무료)
@@ -38,10 +45,18 @@ export interface LocationPreset {
   id: string;
   name: string;                // 장소명 (예: "구조라해수욕장")
   detail?: string;              // 상세 집결위치 (예: "해변 중앙 파라솔 앞")
+  address?: string;            // 대표 주소 (도로명 주소 등)
+  roadAddress?: string;        // 도로명 주소
+  jibunAddress?: string;       // 지번 주소
+  kakaoAddress?: string;       // 카카오맵 전용 주소
+  naverAddress?: string;       // 네이버 지도 전용 주소
+  tmapAddress?: string;        // 티맵 전용 주소
+  mapAddress?: { kakao?: string; naver?: string; tmap?: string; [key: string]: string | undefined } | string;
   lat: number;
   lng: number;
   position: LocationPosition;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 // 5. 참여 응답 (RSVP)

@@ -44,8 +44,9 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
 }) => {
   const { currentUser } = useAuth();
 
-  // 등록된 실제 모임 DB 조회
+  // 등록된 실제 모임 DB 및 지정주소(locationPresets) DB 조회
   const allGatherings = useLiveQuery(() => db.gatherings.toArray(), []) ?? [];
+  const allPresets = useLiveQuery(() => db.locationPresets.toArray(), []) ?? [];
 
   // 이전까지 등록된 회차 중 가장 큰 회차 + 1 계산 (기본값)
   const defaultNextRound = useMemo(() => {
@@ -55,21 +56,66 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     return validRounds.length > 0 ? Math.max(...validRounds) + 1 : 1;
   }, [allGatherings]);
 
-  // 등록된 실제 모임 DB 기반 집결위치 목록 추출
+  // 등록된 실제 모임 DB + 지정주소(locationPresets) 기반 집결위치 목록 추출
   const availableLocations = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; detail?: string; lat: number; lng: number; position: LocationPosition }>();
+    const map = new Map<string, {
+      id: string;
+      name: string;
+      detail?: string;
+      address?: string;
+      roadAddress?: string;
+      kakaoAddress?: string;
+      naverAddress?: string;
+      tmapAddress?: string;
+      lat: number;
+      lng: number;
+      position: LocationPosition;
+    }>();
 
+    // 1. 지정주소 프리셋 우선 등록
+    allPresets.forEach((p) => {
+      if (p.name && p.position) {
+        const key = `preset_${p.id}`;
+        map.set(key, {
+          id: p.id,
+          name: p.name,
+          detail: p.detail,
+          address: p.address,
+          roadAddress: p.roadAddress,
+          kakaoAddress: p.kakaoAddress,
+          naverAddress: p.naverAddress,
+          tmapAddress: p.tmapAddress,
+          lat: p.lat,
+          lng: p.lng,
+          position: p.position,
+        });
+      }
+    });
+
+    // 2. 모임 DB의 집결위치 보강 등록
     allGatherings.forEach((g) => {
       if (!g.isDeleted && g.locationName && g.position) {
         const key = `${g.locationName}___${g.locationDetail || ''}___${g.position.lat.toFixed(5)}___${g.position.lng.toFixed(5)}`;
         if (!map.has(key)) {
-          map.set(key, { id: `gat_${g.id}`, name: g.locationName, detail: g.locationDetail, lat: g.position.lat, lng: g.position.lng, position: g.position });
+          map.set(key, {
+            id: `gat_${g.id}`,
+            name: g.locationName,
+            detail: g.locationDetail,
+            address: g.address,
+            roadAddress: g.roadAddress,
+            kakaoAddress: g.kakaoAddress,
+            naverAddress: g.naverAddress,
+            tmapAddress: g.tmapAddress,
+            lat: g.position.lat,
+            lng: g.position.lng,
+            position: g.position,
+          });
         }
       }
     });
 
     return Array.from(map.values());
-  }, [allGatherings]);
+  }, [allPresets, allGatherings]);
 
 
 
@@ -84,6 +130,11 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
   const [status, setStatus] = useState<GatheringStatus>('CONFIRMED');
   const [locationName, setLocationName] = useState('');
   const [locationDetail, setLocationDetail] = useState('');
+  const [address, setAddress] = useState('');
+  const [roadAddress, setRoadAddress] = useState('');
+  const [kakaoAddress, setKakaoAddress] = useState('');
+  const [naverAddress, setNaverAddress] = useState('');
+  const [tmapAddress, setTmapAddress] = useState('');
   const [currentPosition, setCurrentPosition] = useState<LocationPosition | null>(null);
   const [selectedDetailId, setSelectedDetailId] = useState<string>('');  // '' = 선택 안함, 'direct' = 직접 입력
   const [description, setDescription] = useState('');
@@ -124,6 +175,11 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     if (val === '') {
       setLocationName('');
       setLocationDetail('');
+      setAddress('');
+      setRoadAddress('');
+      setKakaoAddress('');
+      setNaverAddress('');
+      setTmapAddress('');
       setCurrentPosition(null);
       return;
     }
@@ -132,6 +188,11 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     if (found) {
       setLocationName(found.name);
       setLocationDetail(found.detail || '');
+      setAddress(found.address || '');
+      setRoadAddress(found.roadAddress || '');
+      setKakaoAddress(found.kakaoAddress || '');
+      setNaverAddress(found.naverAddress || '');
+      setTmapAddress(found.tmapAddress || '');
       setCurrentPosition(found.position);
     }
   };
@@ -178,15 +239,17 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     const isoDateTime = formatToKoreanIso(selectedDate, selectedTime);
 
     await onCreate({
-
-
-
       roundNumber,
       title: finalTitle,
       status,
       dateTime: isoDateTime,
       locationName: locationName.trim(),
       locationDetail: locationDetail.trim() || undefined,
+      address: address.trim() || undefined,
+      roadAddress: roadAddress.trim() || undefined,
+      kakaoAddress: kakaoAddress.trim() || undefined,
+      naverAddress: naverAddress.trim() || undefined,
+      tmapAddress: tmapAddress.trim() || undefined,
       position: currentPosition,
       description: description.trim() || '모임 상세 내용이 곧 업데이트됩니다.',
       thumbnailUrl,

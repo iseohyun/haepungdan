@@ -11,6 +11,7 @@ import { GatheringDetailModal } from './components/GatheringDetailModal';
 import { CreateGatheringModal } from './components/CreateGatheringModal';
 import { AdminManagementModal } from './components/admin/AdminManagementModal';
 import { FirebaseConfigModal } from './components/admin/FirebaseConfigModal';
+import { LocationPresetsModal } from './components/admin/LocationPresetsModal';
 import { useAuth } from './context/AuthContext';
 
 export const App: React.FC = () => {
@@ -63,6 +64,7 @@ export const App: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
+  const [isLocationPresetsModalOpen, setIsLocationPresetsModalOpen] = useState(false);
 
   const hasInitializedRef = useRef(false);
 
@@ -227,6 +229,7 @@ export const App: React.FC = () => {
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
         onOpenFirebaseConfig={() => setIsFirebaseModalOpen(true)}
+        onOpenLocationPresets={() => setIsLocationPresetsModalOpen(true)}
       />
 
       {/* 3. 100vh 풀스크린 거제 지도 */}
@@ -292,6 +295,14 @@ export const App: React.FC = () => {
           onConfigChanged={() => {
             // 트리거 리렌더
           }}
+        />
+      )}
+
+      {/* 9. 지정주소(집결지) 관리 및 수정/삭제 모달 */}
+      {isLocationPresetsModalOpen && (
+        <LocationPresetsModal
+          isOpen={isLocationPresetsModalOpen}
+          onClose={() => setIsLocationPresetsModalOpen(false)}
         />
       )}
     </div>

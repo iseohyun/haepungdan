@@ -1,5 +1,22 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.4.2] - 2026-08-21
+### 주요 변경 및 개선 사항 (3단계 위치 안내 우선순위, 지정주소 관리 인터페이스, 네이버 지도 최신 URL 규격, PC 환경 티맵 비활성화 및 모바일 전용 분기)
+- **위치 안내 및 길찾기 3단계 우선순위 로직 구축 (`coordinates.ts`, `types/index.ts`, `GatheringDetailModal.tsx`)**:
+  - 1순위: 해당 지도 전용 지정주소 (`kakaoAddress`, `naverAddress`, `tmapAddress`)
+  - 2순위: 대표 도로명/지번 주소 (`roadAddress`, `address`, `locationDetail`)
+  - 3순위: GPS 위경도 좌표 (`34.xxxxx°N, 128.xxxxx°E`)
+  - 모임 상세 모달의 장소 카드에 우선순위 판별 뱃지(`지정주소`, `대표주소`, `GPS 좌표`) 실시간 표시.
+- **사이드바 [관리 & 설정] 내 지정주소(집결지) 관리 모달 추가 (`LocationPresetsModal.tsx`, `Sidebar.tsx`, `db.ts`, `firebase.ts`)**:
+  - 모임 장소별 지정주소(카카오/네이버/티맵), 대표 도로명주소, GPS 좌표를 등록, 수정, 삭제하는 전용 관리 인터페이스 제공.
+  - IndexedDB(`locationPresets` 테이블, Schema v4) 및 Firebase Firestore 클라우드 양방향 자동 증분 동기화.
+  - 모임 개설 및 수정 시 등록된 지정주소 목록이 드롭다운에 즉시 자동완성 및 주소 필드 영구 저장.
+- **네이버 지도 최신 검색 URL 규격 갱신 (`coordinates.ts`)**:
+  - 구버전 길찾기 링크에서 최신 통합 검색 규격(`https://map.naver.com/p/search/{주소}?c=15.00,0,0,0,dh`)으로 전면 전환.
+- **티맵(T map) PC 환경 비활성화 및 모바일 앱 스킴 전용 분기 (`GatheringDetailModal.tsx`, `coordinates.ts`)**:
+  - PC 브라우저(데스크톱)에서는 401 오류를 방지하기 위해 티맵 버튼을 비활성화하고 모바일 앱 전용 안내 툴팁/얼럿 제공.
+  - 모바일 환경에서는 `tmap://` 앱 스킴을 통해 티맵 내비게이션 즉시 실행.
+
 ## [v0.4.1] - 2026-08-21
 ### 주요 변경 및 개선 사항 (라이트 모드 전수조사 및 전면 테마 엔진 구축, 텍스트 가독성 및 배경 대비 최적화)
 - **라이트(화이트) 모드 전수조사 및 포괄적 테마 엔진 구축 (`app.css`, `tailwind.config.js`)**:

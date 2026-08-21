@@ -5,6 +5,22 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-08-21
+
+### Added & Improved
+- **3-Tier Location Guide & Navigation Fallback (`coordinates.ts`, `types/index.ts`, `GatheringDetailModal.tsx`)**:
+  - Implemented prioritized location resolution: 1. Map-specific address -> 2. Primary road/jibun address -> 3. GPS coordinates.
+  - Displayed live priority badges (`지정주소`, `대표주소`, `GPS 좌표`) in the gathering detail modal.
+- **Location Presets Management Modal (`LocationPresetsModal.tsx`, `Sidebar.tsx`, `db.ts`, `firebase.ts`)**:
+  - Added dedicated interface to create, edit, search, and delete location presets under the "Settings & Tools" sidebar tab.
+  - Bi-directional sync with IndexedDB (v4 schema) and Firebase Firestore `locationPresets`.
+  - Auto-completion and address persistence when creating/editing gatherings.
+- **Modern Naver Map URL Standard (`coordinates.ts`)**:
+  - Upgraded Naver Map links to the latest search standard (`https://map.naver.com/p/search/{query}?c=15.00,0,0,0,dh`).
+- **TMAP PC Disabled & Mobile App Scheme Support (`GatheringDetailModal.tsx`, `coordinates.ts`)**:
+  - Disabled TMAP button on desktop browsers to prevent 401 unauthorized errors with informative tooltips.
+  - Enabled direct `tmap://` app scheme for mobile devices.
+
 ## [0.4.1] - 2026-08-21
 
 ### Fixed & Improved

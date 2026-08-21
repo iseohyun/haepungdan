@@ -19,7 +19,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './db';
-import { Gathering, GatheringRSVP, GatheringReview } from '../types';
+import { Gathering, GatheringRSVP, GatheringReview, LocationPreset } from '../types';
 
 
 
@@ -216,6 +216,26 @@ class FirebaseService {
     }
   }
 
+  public async saveLocationPresetToCloud(preset: LocationPreset): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'locationPresets', preset.id);
+      await setDoc(ref, this.cleanData(preset), { merge: true });
+    } catch (err) {
+      console.warn('Firebase saveLocationPresetToCloud skipped:', err);
+    }
+  }
+
+  public async deleteLocationPresetFromCloud(presetId: string): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'locationPresets', presetId);
+      await deleteDoc(ref);
+    } catch (err) {
+      console.warn('Firebase deleteLocationPresetFromCloud skipped:', err);
+    }
+  }
+
   /**
    * =========================================================================
    * Local-First Delta Sync Engine (IndexedDB <-> Firestore 증분 동기화)
@@ -312,7 +332,30 @@ class FirebaseService {
       console.warn('reviews pull skipped:', e);
     }
 
-    // 8. 동기화 타임스탬프 갱신
+    // 8. LOCATION PRESETS: 로컬 -> 서버 PUSH & 서버 -> 로컬 PULL
+    const localPresets = await db.locationPresets.toArray();
+    if (localPresets.length > 0) {
+      const batch = writeBatch(this.firestore);
+      for (const preset of localPresets) {
+        const ref = doc(this.firestore, 'locationPresets', preset.id);
+        batch.set(ref, this.cleanData(preset), { merge: true });
+        pushedCount++;
+      }
+      await batch.commit();
+    }
+
+    try {
+      const serverPresetsSnap = await getDocs(collection(this.firestore, 'locationPresets'));
+      if (!serverPresetsSnap.empty) {
+        const serverPresets = serverPresetsSnap.docs.map((d) => d.data() as LocationPreset);
+        await db.locationPresets.bulkPut(serverPresets);
+        pulledCount += serverPresets.length;
+      }
+    } catch (e) {
+      console.warn('locationPresets pull skipped:', e);
+    }
+
+    // 9. 동기화 타임스탬프 갱신
     await db.syncMeta.put({
       key: 'lastSyncTimestamp',
       value: now,
@@ -320,8 +363,6 @@ class FirebaseService {
 
     return { pushed: pushedCount, pulled: pulledCount };
   }
-
-
 }
 
 export const firebaseService = new FirebaseService();

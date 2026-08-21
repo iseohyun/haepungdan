@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { Gathering, GatheringRSVP, GatheringReview, SyncMetadata, UserProfile, GatheringStatus, RSVPStatus } from '../types';
+import { Gathering, GatheringRSVP, GatheringReview, SyncMetadata, UserProfile, GatheringStatus, RSVPStatus, LocationPreset } from '../types';
 import { MOCK_USERS } from '../data/initialData';
 
 export class HaepungdanDatabase extends Dexie {
@@ -8,16 +8,18 @@ export class HaepungdanDatabase extends Dexie {
   reviews!: Table<GatheringReview, string>;
   users!: Table<UserProfile, string>;
   syncMeta!: Table<SyncMetadata, string>;
+  locationPresets!: Table<LocationPreset, string>;
 
   constructor() {
     super('haepungdan_db');
 
-    this.version(3).stores({
+    this.version(4).stores({
       gatherings: 'id, roundNumber, status, dateTime, locationName, updatedAt, isDeleted',
       rsvps: 'id, gatheringId, userId, status, updatedAt',
       reviews: 'id, gatheringId, userId, rating, createdAt, updatedAt',
       users: 'uid, email, role',
       syncMeta: 'key',
+      locationPresets: 'id, name, detail, address, roadAddress, lat, lng, updatedAt',
     });
   }
 
@@ -30,6 +32,42 @@ export class HaepungdanDatabase extends Dexie {
       await this.users.bulkAdd(Object.values(MOCK_USERS));
     }
 
+    // locationPresets 초기 데이터 마이그레이션 (gatherings에 등록된 위치들 추출)
+    const presetCount = await this.locationPresets.count();
+    if (presetCount === 0) {
+      const allGatherings = await this.gatherings.toArray();
+      const presetsToInsert: LocationPreset[] = [];
+      const seenKeys = new Set<string>();
+
+      for (const g of allGatherings) {
+        if (!g.isDeleted && g.locationName && g.position) {
+          const locKey = `loc_${g.locationName.trim()}_${g.position.lat.toFixed(4)}_${g.position.lng.toFixed(4)}`;
+          if (!seenKeys.has(locKey)) {
+            seenKeys.add(locKey);
+            presetsToInsert.push({
+              id: locKey,
+              name: g.locationName,
+              detail: g.locationDetail || '',
+              address: g.address || '',
+              roadAddress: g.roadAddress || '',
+              kakaoAddress: g.kakaoAddress || '',
+              naverAddress: g.naverAddress || '',
+              tmapAddress: g.tmapAddress || '',
+              lat: g.position.lat,
+              lng: g.position.lng,
+              position: g.position,
+              createdAt: g.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      if (presetsToInsert.length > 0) {
+        await this.locationPresets.bulkPut(presetsToInsert);
+      }
+    }
+
     const syncMeta = await this.syncMeta.get('lastSyncTimestamp');
     if (!syncMeta) {
       await this.syncMeta.put({
@@ -37,6 +75,23 @@ export class HaepungdanDatabase extends Dexie {
         value: '1970-01-01T00:00:00.000Z',
       });
     }
+  }
+
+  /**
+   * 지정주소(LocationPreset) 저장 및 업데이트
+   */
+  async upsertLocationPreset(preset: LocationPreset): Promise<void> {
+    await this.locationPresets.put({
+      ...preset,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * 지정주소(LocationPreset) 삭제
+   */
+  async deleteLocationPreset(presetId: string): Promise<void> {
+    await this.locationPresets.delete(presetId);
   }
 
 

@@ -78,28 +78,143 @@ export function createLocationFromPercent(x_pct: number, y_pct: number): Locatio
   };
 }
 
+export interface NavigationLocationInput {
+  lat: number;
+  lng: number;
+  name?: string;
+  locationName?: string;
+  detail?: string;
+  locationDetail?: string;
+  address?: string;
+  roadAddress?: string;
+  jibunAddress?: string;
+  kakaoAddress?: string;
+  naverAddress?: string;
+  tmapAddress?: string;
+  mapAddress?: { kakao?: string; naver?: string; tmap?: string; [key: string]: string | undefined } | string;
+}
+
+/**
+ * [위치 안내 및 길찾기 3단계 우선순위 해결 함수]
+ * 1. 해당 지도의 주소가 있다면, 해당 주소로 안내 (1순위)
+ * 2. 대표 주소가 있다면, 대표 주소로 안내 (2순위)
+ * 3. 아무것도 없다면 GPS 정보로 안내 (3순위)
+ */
+export function resolveLocationGuide(
+  loc: NavigationLocationInput,
+  mapType?: 'kakao' | 'naver' | 'tmap'
+): {
+  destinationName: string;
+  displayAddress: string;
+  guideType: 'specific_map_address' | 'primary_address' | 'gps';
+  badgeLabel: string;
+} {
+  const placeName = loc.locationName || loc.name || '집결장소';
+
+  // 1. 해당 지도의 전용 주소 (1순위)
+  let specificMapAddress: string | undefined;
+  if (mapType === 'kakao') {
+    specificMapAddress = loc.kakaoAddress;
+  } else if (mapType === 'naver') {
+    specificMapAddress = loc.naverAddress;
+  } else if (mapType === 'tmap') {
+    specificMapAddress = loc.tmapAddress;
+  }
+
+  if (!specificMapAddress && loc.mapAddress) {
+    if (typeof loc.mapAddress === 'object' && mapType) {
+      specificMapAddress = loc.mapAddress[mapType];
+    } else if (typeof loc.mapAddress === 'string') {
+      specificMapAddress = loc.mapAddress;
+    }
+  }
+
+  if (specificMapAddress && specificMapAddress.trim()) {
+    return {
+      destinationName: specificMapAddress.trim(),
+      displayAddress: specificMapAddress.trim(),
+      guideType: 'specific_map_address',
+      badgeLabel: mapType ? `${mapType.toUpperCase()} 지정주소` : '지정주소',
+    };
+  }
+
+  // 2. 대표 주소 (2순위)
+  const primaryAddress =
+    loc.roadAddress ||
+    loc.address ||
+    loc.jibunAddress ||
+    (loc.locationDetail && loc.locationDetail.trim().length > 3 ? loc.locationDetail : undefined);
+
+  if (primaryAddress && primaryAddress.trim()) {
+    return {
+      destinationName: primaryAddress.trim(),
+      displayAddress: primaryAddress.trim(),
+      guideType: 'primary_address',
+      badgeLabel: '대표주소',
+    };
+  }
+
+  // 3. 아무것도 없다면 GPS 정보 (3순위)
+  const gpsCoordText = `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`;
+  const gpsDisplay = `${loc.lat.toFixed(5)}°N, ${loc.lng.toFixed(5)}°E`;
+  return {
+    destinationName: placeName !== '집결장소' ? `${placeName} (${gpsCoordText})` : gpsCoordText,
+    displayAddress: gpsDisplay,
+    guideType: 'gps',
+    badgeLabel: 'GPS 좌표',
+  };
+}
+
 /**
  * 카카오맵 길찾기 URL 생성
  */
-export function getKakaoMapUrl(lat: number, lng: number, placeName: string): string {
-  const encName = encodeURIComponent(placeName);
-  return `https://map.kakao.com/link/to/${encName},${lat},${lng}`;
+export function getKakaoMapUrl(
+  latOrLoc: number | NavigationLocationInput,
+  lng?: number,
+  placeName?: string
+): string {
+  if (typeof latOrLoc === 'object') {
+    const guide = resolveLocationGuide(latOrLoc, 'kakao');
+    const encDest = encodeURIComponent(guide.destinationName);
+    return `https://map.kakao.com/link/to/${encDest},${latOrLoc.lat},${latOrLoc.lng}`;
+  }
+  const encName = encodeURIComponent(placeName || '목적지');
+  return `https://map.kakao.com/link/to/${encName},${latOrLoc},${lng ?? 0}`;
 }
 
 /**
- * 네이버 지도 길찾기 URL 생성
+ * 네이버 지도 길찾기/검색 URL 생성
+ * 형식: https://map.naver.com/p/search/${encodeURIComponent(주소 또는 명칭)}?c=15.00,0,0,0,dh
  */
-export function getNaverMapUrl(lat: number, lng: number, placeName: string): string {
-  const encName = encodeURIComponent(placeName);
-  return `https://map.naver.com/v5/directions/-/-/-/transit?c=${lng},${lat},15,0,0,0,dh&destination=${encName},${lng},${lat}`;
+export function getNaverMapUrl(
+  latOrLoc: number | NavigationLocationInput,
+  lng?: number,
+  placeName?: string
+): string {
+  if (typeof latOrLoc === 'object') {
+    const guide = resolveLocationGuide(latOrLoc, 'naver');
+    const encDest = encodeURIComponent(guide.destinationName);
+    return `https://map.naver.com/p/search/${encDest}?c=15.00,0,0,0,dh`;
+  }
+  const encName = encodeURIComponent(placeName || `${latOrLoc},${lng ?? 0}`);
+  return `https://map.naver.com/p/search/${encName}?c=15.00,0,0,0,dh`;
 }
 
 /**
- * 티맵 (TMAP) 길찾기 URL 생성
+ * 티맵 (TMAP) 길찾기 URL 생성 (모바일 앱 스킴 지원)
  */
-export function getTMapUrl(lat: number, lng: number, placeName: string): string {
-  const encName = encodeURIComponent(placeName);
-  return `https://apis.openapi.sk.com/tmap/app/routes?appKey=&name=${encName}&lon=${lng}&lat=${lat}`;
+export function getTMapUrl(
+  latOrLoc: number | NavigationLocationInput,
+  lng?: number,
+  placeName?: string
+): string {
+  if (typeof latOrLoc === 'object') {
+    const guide = resolveLocationGuide(latOrLoc, 'tmap');
+    const encDest = encodeURIComponent(guide.destinationName);
+    return `tmap://route?goalname=${encDest}&goallon=${latOrLoc.lng}&goallat=${latOrLoc.lat}`;
+  }
+  const encName = encodeURIComponent(placeName || '목적지');
+  return `tmap://route?goalname=${encName}&goallon=${lng ?? 0}&goallat=${latOrLoc}`;
 }
 
 /**
