@@ -5,6 +5,15 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.3] - 2026-08-21
+
+### Added & Improved
+- **Enhanced TMAP Mobile Integration (`coordinates.ts`, `GatheringDetailModal.tsx`)**:
+  - Implemented accurate route navigation parameters (`rGoName`, `rGoX`, `rGoY`) and search fallback.
+  - Added Android Package Intent (`com.skt.tmap.ku`) with Play Store fallback and iOS custom scheme with App Store fallback.
+- **Disabled TMAP Click on PC Browsers (`GatheringDetailModal.tsx`, `coordinates.ts`)**:
+  - Fully disabled TMAP button on desktop environments without alert popups for clean UI interaction.
+
 ## [0.4.2] - 2026-08-21
 
 ### Added & Improved

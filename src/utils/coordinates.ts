@@ -201,7 +201,48 @@ export function getNaverMapUrl(
 }
 
 /**
- * 티맵 (TMAP) 길찾기 URL 생성 (모바일 앱 스킴 지원)
+ * 티맵 (TMAP) 모바일 앱 / 인텐트 / 앱스토어 연동 실행 함수
+ */
+export function openTMap(loc: NavigationLocationInput): void {
+  const guide = resolveLocationGuide(loc, 'tmap');
+  const targetName = guide.destinationName || loc.locationName || '집결지';
+  const encName = encodeURIComponent(targetName);
+  const lat = loc.lat;
+  const lng = loc.lng;
+  const hasGps = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
+
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  // 1. URL Scheme 생성 (좌표 유무에 따라 분기)
+  const scheme = hasGps
+    ? `tmap://route?rGoName=${encName}&rGoX=${lng}&rGoY=${lat}`
+    : `tmap://search?name=${encName}`;
+
+  if (isAndroid) {
+    // 안드로이드: 미설치 시 구글 플레이스토어로 자동 이동하는 Intent URL
+    const intentUrl = hasGps
+      ? `intent://route?rGoName=${encName}&rGoX=${lng}&rGoY=${lat}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`
+      : `intent://search?name=${encName}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
+
+    window.location.href = intentUrl;
+  } else if (isIOS) {
+    // iOS: Scheme 실행 후 미설치 시 앱스토어 이동 처리
+    const appStoreUrl =
+      'https://apps.apple.com/kr/app/tmap-%EB%8C%80%EC%A4%91%EA%B5%90%ED%86%B5-%EB%82%B4%EB%B9%84/id431589174';
+    const startTime = Date.now();
+
+    window.location.href = scheme;
+    setTimeout(() => {
+      if (Date.now() - startTime < 1500) {
+        window.location.href = appStoreUrl;
+      }
+    }, 1000);
+  }
+}
+
+/**
+ * 티맵 (TMAP) 길찾기 URL 생성
  */
 export function getTMapUrl(
   latOrLoc: number | NavigationLocationInput,
@@ -211,10 +252,10 @@ export function getTMapUrl(
   if (typeof latOrLoc === 'object') {
     const guide = resolveLocationGuide(latOrLoc, 'tmap');
     const encDest = encodeURIComponent(guide.destinationName);
-    return `tmap://route?goalname=${encDest}&goallon=${latOrLoc.lng}&goallat=${latOrLoc.lat}`;
+    return `tmap://route?rGoName=${encDest}&rGoX=${latOrLoc.lng}&rGoY=${latOrLoc.lat}`;
   }
   const encName = encodeURIComponent(placeName || '목적지');
-  return `tmap://route?goalname=${encName}&goallon=${lng ?? 0}&goallat=${latOrLoc}`;
+  return `tmap://route?rGoName=${encName}&rGoX=${lng ?? 0}&rGoY=${latOrLoc}`;
 }
 
 /**

@@ -6,7 +6,7 @@ import { db } from '../services/db';
 import {
   getKakaoMapUrl,
   getNaverMapUrl,
-  getTMapUrl,
+  openTMap,
   resolveLocationGuide,
   parseLocalDateTime,
   formatToKoreanIso,
@@ -340,7 +340,6 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const generalLocationGuide = useMemo(() => resolveLocationGuide(locationInput), [locationInput]);
   const kakaoUrl = useMemo(() => getKakaoMapUrl(locationInput), [locationInput]);
   const naverUrl = useMemo(() => getNaverMapUrl(locationInput), [locationInput]);
-  const tmapUrl = useMemo(() => getTMapUrl(locationInput), [locationInput]);
 
   const getStatusBadge = (status: Gathering['status']) => {
     switch (status) {
@@ -793,23 +792,22 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                         <span>네이버지도</span>
                         <ExternalLink className="w-3 h-3 opacity-70" />
                       </a>
-                      {/* 티맵 (모바일 전용 / PC에서는 비활성화) */}
+                      {/* 티맵 (모바일 전용: 안드로이드 Intent / iOS Scheme 실행 / PC 비활성화) */}
                       {isMobileDevice ? (
-                        <a
-                          href={tmapUrl}
-                          className="py-2 px-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center justify-center gap-1 transition"
+                        <button
+                          type="button"
+                          onClick={() => openTMap(locationInput)}
+                          className="py-2 px-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 text-xs font-semibold flex items-center justify-center gap-1 transition cursor-pointer"
                         >
                           <span>티맵(T map)</span>
                           <ExternalLink className="w-3 h-3 opacity-70" />
-                        </a>
+                        </button>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            alert('티맵(TMAP) 길찾기는 스마트폰 모바일 기기(앱)에서만 지원됩니다.\nPC 브라우저에서는 카카오맵 또는 네이버지도를 이용해주세요.');
-                          }}
-                          className="py-2 px-2 rounded-xl bg-slate-800/40 text-slate-500 border border-slate-700/50 text-xs font-medium flex items-center justify-center gap-1 cursor-not-allowed transition hover:border-slate-600"
-                          title="티맵 길찾기는 스마트폰(모바일 앱)에서만 지원됩니다."
+                          disabled
+                          className="py-2 px-2 rounded-xl bg-slate-800/40 text-slate-500 border border-slate-700/50 text-xs font-medium flex items-center justify-center gap-1 cursor-not-allowed opacity-50 select-none pointer-events-none"
+                          title="티맵 길찾기는 스마트폰(모바일 기기) 전용입니다."
                         >
                           <span>티맵 (모바일용)</span>
                         </button>

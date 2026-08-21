@@ -1,5 +1,14 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.4.3] - 2026-08-21
+### 주요 변경 및 개선 사항 (티맵 모바일 전용 연동 고도화, 안드로이드 Intent 및 iOS Scheme 지원, PC 완전 비활성화)
+- **티맵(TMAP) 모바일 앱 연동 및 인텐트 스킴 구현 (`coordinates.ts`, `GatheringDetailModal.tsx`)**:
+  - GPS 위경도 기반 즉시 길안내 파라미터(`rGoName`, `rGoX`, `rGoY`) 및 통합검색 스킴 연동.
+  - **안드로이드**: 미설치 시 Google Play Store로 자동 이동하는 패키지 인텐트(`com.skt.tmap.ku`) 적용.
+  - **iOS**: 커스텀 URL Scheme 실행 및 미설치 시 App Store 자동 이동 Fallback 구현.
+- **티맵(TMAP) PC 환경 클릭 비활성화 (`GatheringDetailModal.tsx`, `coordinates.ts`)**:
+  - PC 데스크톱 브라우저 환경에서는 티맵 버튼을 완전히 비활성화(`disabled`, `pointer-events-none`)하고 알림 팝업을 제거하여 깔끔한 UI 유지.
+
 ## [v0.4.2] - 2026-08-21
 ### 주요 변경 및 개선 사항 (3단계 위치 안내 우선순위, 지정주소 관리 인터페이스, 네이버 지도 최신 URL 규격, PC 환경 티맵 비활성화 및 모바일 전용 분기)
 - **위치 안내 및 길찾기 3단계 우선순위 로직 구축 (`coordinates.ts`, `types/index.ts`, `GatheringDetailModal.tsx`)**:
