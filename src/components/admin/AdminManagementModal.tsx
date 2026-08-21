@@ -3,6 +3,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../../services/db';
 import { UserProfile, UserRole } from '../../types';
 import { exportDatabaseToJson, importDatabaseFromJson } from '../../services/backup';
+import { firebaseService } from '../../services/firebase';
 import {
   X,
   Shield,
@@ -11,7 +12,8 @@ import {
   Download,
   Upload,
   CheckCircle2,
-  Sparkles,
+  Clock,
+  Trash2,
 } from 'lucide-react';
 
 interface AdminManagementModalProps {
@@ -25,15 +27,53 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 날짜/시간 포맷팅 헬퍼
+  const formatUserDate = (isoString?: string) => {
+    if (!isoString) return '-';
+    try {
+      const d = new Date(isoString);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      return `${y}.${m}.${day} ${hh}:${mm}`;
+    } catch {
+      return isoString;
+    }
+  };
+
   // 사용자 권한 변경 핸들러
   const handleRoleChange = async (uid: string, newRole: UserRole) => {
     const now = new Date().toISOString();
-    await db.users.update(uid, {
+    const existing = await db.users.get(uid);
+    if (!existing) return;
+
+    const updatedUser: UserProfile = {
+      ...existing,
       role: newRole,
       approvedAt: newRole === 'MEMBER' || newRole === 'ADMIN' ? now : undefined,
-    });
-    setFeedbackMessage(`회원 권한이 '${newRole}'(으)로 변경되었습니다.`);
+    };
+
+    await db.users.put(updatedUser);
+    await firebaseService.saveUserToCloud(updatedUser);
+
+    setFeedbackMessage(`'${existing.displayName}'님의 권한이 '${newRole}'(으)로 변경되었습니다.`);
     setTimeout(() => setFeedbackMessage(null), 3000);
+  };
+
+  // 사용자 계정 삭제 핸들러
+  const handleDeleteUser = async (user: UserProfile) => {
+    if (!confirm(`'${user.displayName}' (${user.email || user.uid}) 회원을 삭제하시겠습니까?`)) return;
+
+    try {
+      await db.users.delete(user.uid);
+      await firebaseService.deleteUserFromCloud(user.uid);
+      setFeedbackMessage(`'${user.displayName}' 회원이 삭제되었습니다.`);
+      setTimeout(() => setFeedbackMessage(null), 3000);
+    } catch (err) {
+      alert('회원 삭제 중 오류가 발생했습니다.');
+    }
   };
 
   // 백업 파일 복원 핸들러
@@ -53,24 +93,9 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // 신규 임의 회원 추가 (테스트용)
-  const handleAddMockUser = async () => {
-    const randomId = `user_${Date.now().toString().slice(-4)}`;
-    const newUser: UserProfile = {
-      uid: randomId,
-      email: `${randomId}@geoje.com`,
-      displayName: `신규가입자_${randomId.slice(-3)}`,
-      role: 'GUEST',
-      createdAt: new Date().toISOString(),
-    };
-    await db.users.add(newUser);
-    setFeedbackMessage('새로운 가입 대기 회원(GUEST)이 추가되었습니다.');
-    setTimeout(() => setFeedbackMessage(null), 3000);
-  };
-
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-fadeIn select-none">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn text-slate-100">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-scaleIn text-slate-100">
         
         {/* 상단 헤더 */}
         <div className="p-4 sm:p-5 bg-slate-800/90 border-b border-slate-700/80 flex items-center justify-between shrink-0">
@@ -83,7 +108,7 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
                 해풍단 관리자 센터 (Admin Hub)
               </h2>
               <p className="text-xs text-slate-400">
-                회원 권한 승인제 관리 및 데이터베이스 백업/복원
+                회원 권한(등급) 관리, 최근 로그인 조회 및 데이터베이스 백업/복원
               </p>
             </div>
           </div>
@@ -148,107 +173,116 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
                 <UserCheck className="w-4 h-4 text-emerald-400" />
-                등록 회원 및 권한 관리 ({users.length}명)
+                구글 로그인 회원 및 권한 관리 ({users.length}명)
               </h3>
-              <button
-                onClick={handleAddMockUser}
-                className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold flex items-center gap-1 transition"
-              >
-                <Sparkles className="w-3 h-3 text-amber-400" />
-                <span>+ 테스트 회원 추가</span>
-              </button>
             </div>
 
             <div className="space-y-2">
-              {users.map((u) => {
-                const isGuest = u.role === 'GUEST';
-                const isMember = u.role === 'MEMBER';
-                const isAdminRole = u.role === 'ADMIN';
+              {users.length === 0 ? (
+                <div className="text-center py-10 text-slate-500 text-xs glass-card rounded-2xl">
+                  아직 로그인한 회원이 없습니다.
+                </div>
+              ) : (
+                users.map((u) => {
+                  const isGuest = u.role === 'GUEST';
+                  const isMember = u.role === 'MEMBER';
+                  const isAdminRole = u.role === 'ADMIN';
 
-                return (
-                  <div
-                    key={u.uid}
-                    className="p-3.5 rounded-2xl glass-card border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                        isAdminRole
-                          ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                          : isMember
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                          : 'bg-slate-800 text-slate-300 border border-slate-700'
-                      }`}>
-                        {isAdminRole ? (
-                          <Shield className="w-4 h-4" />
-                        ) : isMember ? (
-                          <UserCheck className="w-4 h-4" />
+                  return (
+                    <div
+                      key={u.uid}
+                      className="p-3.5 sm:p-4 rounded-2xl glass-card border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition hover:border-slate-700"
+                    >
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        {/* 프로필 사진 또는 기본 아이콘 */}
+                        {u.photoURL ? (
+                          <img
+                            src={u.photoURL}
+                            alt={u.displayName}
+                            className="w-9 h-9 rounded-full object-cover border border-slate-700 shrink-0"
+                          />
                         ) : (
-                          <User className="w-4 h-4" />
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                              isAdminRole
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                                : isMember
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                                : 'bg-slate-800 text-slate-300 border border-slate-700'
+                            }`}
+                          >
+                            {isAdminRole ? (
+                              <Shield className="w-4 h-4" />
+                            ) : isMember ? (
+                              <UserCheck className="w-4 h-4" />
+                            ) : (
+                              <User className="w-4 h-4" />
+                            )}
+                          </div>
                         )}
-                      </div>
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <strong className="text-xs text-white">{u.displayName}</strong>
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                            isAdminRole
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                              : isMember
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : isGuest
-                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                              : 'bg-slate-800 text-slate-400'
-                          }`}>
-                            {isAdminRole ? '관리자' : isMember ? '정회원' : isGuest ? '게스트 (승인대기)' : '비로그인'}
-                          </span>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <strong className="text-xs font-bold text-white truncate">{u.displayName}</strong>
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                isAdminRole
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                  : isMember
+                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                  : isGuest
+                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {isAdminRole ? '👑 관리자' : isMember ? '🏊 정회원' : '🌱 게스트(준회원)'}
+                            </span>
+                          </div>
+
+                          <div className="text-[11px] text-slate-400 font-mono flex items-center gap-2 flex-wrap">
+                            <span className="text-slate-300">{u.email || u.uid}</span>
+                          </div>
+
+                          <div className="text-[10px] text-slate-500 font-mono flex items-center gap-3 pt-0.5 flex-wrap">
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <Clock className="w-3 h-3 text-ocean-400" />
+                              최근 로그인: {formatUserDate(u.lastLoginAt || u.createdAt)}
+                            </span>
+                            <span>가입일: {formatUserDate(u.createdAt)}</span>
+                          </div>
                         </div>
-                        <span className="text-[11px] text-slate-500 font-mono block">
-                          {u.email} {u.approvedAt ? `• 승인일: ${new Date(u.approvedAt).toLocaleDateString('ko-KR')}` : ''}
-                        </span>
+                      </div>
+
+                      {/* 등급 변경 드롭다운 / 버튼 & 삭제 버튼 */}
+                      <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                        <select
+                          value={u.role}
+                          onChange={(e) => handleRoleChange(u.uid, e.target.value as UserRole)}
+                          className={`bg-slate-950 border rounded-xl px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-ocean-500 ${
+                            isAdminRole
+                              ? 'border-amber-500/50 text-amber-300'
+                              : isMember
+                              ? 'border-emerald-500/50 text-emerald-300'
+                              : 'border-slate-700 text-slate-300'
+                          }`}
+                        >
+                          <option value="GUEST">🌱 게스트</option>
+                          <option value="MEMBER">🏊 정회원</option>
+                          <option value="ADMIN">👑 관리자</option>
+                        </select>
+
+                        <button
+                          onClick={() => handleDeleteUser(u)}
+                          className="p-2 rounded-xl bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 transition"
+                          title="회원 삭제"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-
-                    {/* 권한 변경 버튼들 */}
-                    <div className="flex items-center gap-1.5 self-end sm:self-center">
-                      {isGuest && (
-                        <button
-                          onClick={() => handleRoleChange(u.uid, 'MEMBER')}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow"
-                        >
-                          정회원 승인
-                        </button>
-                      )}
-
-                      {isMember && (
-                        <button
-                          onClick={() => handleRoleChange(u.uid, 'ADMIN')}
-                          className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-semibold transition"
-                        >
-                          관리자 임명
-                        </button>
-                      )}
-
-                      {isAdminRole && (
-                        <button
-                          onClick={() => handleRoleChange(u.uid, 'MEMBER')}
-                          className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold transition"
-                        >
-                          정회원 강등
-                        </button>
-                      )}
-
-                      {!isGuest && (
-                        <button
-                          onClick={() => handleRoleChange(u.uid, 'GUEST')}
-                          className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-[11px] transition"
-                        >
-                          게스트 전환
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole } from '../types';
-import { MOCK_USERS } from '../data/initialData';
 import { firebaseService } from '../services/firebase';
 import { db } from '../services/db';
 
@@ -14,7 +13,6 @@ interface AuthContextType {
   canRSVP: boolean;              // 정회원 이상
   canWriteReview: boolean;       // 정회원 이상
   canManageUsers: boolean;       // 관리자만
-  loginAs: (roleKey: 'unauth' | 'guest' | 'member' | 'admin') => void;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -22,13 +20,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    const saved = localStorage.getItem('haepungdan_mock_role');
-    if (saved === 'admin') return MOCK_USERS.admin;
-    if (saved === 'member') return MOCK_USERS.member;
-    if (saved === 'guest') return MOCK_USERS.guest;
-    return null; // 기본: 비로그인
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
 
   const currentRole: UserRole = currentUser ? currentUser.role : 'UNAUTHENTICATED';
   const isLoggedIn = currentUser !== null;
@@ -40,26 +32,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const canWriteReview = currentRole === 'MEMBER' || currentRole === 'ADMIN';
   const canManageUsers = currentRole === 'ADMIN';
 
-  // Mock 역할 스위처 (개발 및 시연용)
-  const loginAs = (roleKey: 'unauth' | 'guest' | 'member' | 'admin') => {
-    if (roleKey === 'unauth') {
-      setCurrentUser(null);
-      localStorage.removeItem('haepungdan_mock_role');
-    } else {
-      const user = MOCK_USERS[roleKey];
-      setCurrentUser(user);
-      localStorage.setItem('haepungdan_mock_role', roleKey);
-    }
-  };
-
-  // Google OAuth 로그인 실행
+  // Google OAuth 로그인 실행 및 유저 프로필 등록/갱신
   const loginWithGoogle = async () => {
-    if (!firebaseService.isConfigured) {
-      // Firebase가 아직 미설정된 경우 모의 로그인(정회원)으로 전환
-      loginAs('member');
-      return;
-    }
-
     try {
       const fbUser = await firebaseService.loginWithGoogle();
       if (!fbUser) return;
@@ -68,29 +42,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const email = fbUser.email || '';
       const displayName = fbUser.displayName || 'Google 사용자';
       const photoURL = fbUser.photoURL || undefined;
+      const now = new Date().toISOString();
 
       // 로컬 DB에서 기존 회원 정보 조회
-      let user = await db.users.get(uid);
-      if (!user) {
-        // 첫 로그인 시 기본 'GUEST'로 등록 (관리자 이메일일 경우 ADMIN 자동 부여)
-        const isAdminEmail = email.includes('admin') || email === 'iseohyun@hanmail.net';
-        const role: UserRole = isAdminEmail ? 'ADMIN' : 'GUEST';
-        const now = new Date().toISOString();
+      const existing = await db.users.get(uid);
+      const isAdminEmail = email === 'iseohyun@hanmail.net' || email.includes('admin');
 
-        user = {
+      let userProfile: UserProfile;
+
+      if (existing) {
+        userProfile = {
+          ...existing,
+          displayName: displayName || existing.displayName,
+          photoURL: photoURL || existing.photoURL,
+          lastLoginAt: now,
+          role: existing.role || (isAdminEmail ? 'ADMIN' : 'GUEST'),
+        };
+      } else {
+        userProfile = {
           uid,
           email,
           displayName,
           photoURL,
-          role,
+          role: isAdminEmail ? 'ADMIN' : 'GUEST',
           approvedAt: isAdminEmail ? now : undefined,
+          lastLoginAt: now,
           createdAt: now,
         };
-        await db.users.put(user);
       }
 
-      setCurrentUser(user);
-      localStorage.removeItem('haepungdan_mock_role');
+      // 로컬 IndexedDB 저장 및 Firebase 클라우드 동기화
+      await db.users.put(userProfile);
+      await firebaseService.saveUserToCloud(userProfile);
+
+      setCurrentUser(userProfile);
     } catch (err: any) {
       console.error('Google login failed:', err);
       throw err;
@@ -103,7 +88,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await firebaseService.logout();
     }
     setCurrentUser(null);
-    localStorage.removeItem('haepungdan_mock_role');
   };
 
   useEffect(() => {
@@ -114,7 +98,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const user = await db.users.get(fbUser.uid);
           if (user) {
             setCurrentUser(user);
+          } else {
+            const now = new Date().toISOString();
+            const isAdminEmail = fbUser.email === 'iseohyun@hanmail.net' || fbUser.email?.includes('admin');
+            const newProfile: UserProfile = {
+              uid: fbUser.uid,
+              email: fbUser.email || '',
+              displayName: fbUser.displayName || 'Google 사용자',
+              photoURL: fbUser.photoURL || undefined,
+              role: isAdminEmail ? 'ADMIN' : 'GUEST',
+              approvedAt: isAdminEmail ? now : undefined,
+              lastLoginAt: now,
+              createdAt: now,
+            };
+            await db.users.put(newProfile);
+            await firebaseService.saveUserToCloud(newProfile);
+            setCurrentUser(newProfile);
           }
+        } else {
+          setCurrentUser(null);
         }
       });
       return () => unsubscribe();
@@ -133,7 +135,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         canRSVP,
         canWriteReview,
         canManageUsers,
-        loginAs,
         loginWithGoogle,
         logout,
       }}

@@ -1,6 +1,5 @@
 import Dexie, { Table } from 'dexie';
 import { Gathering, GatheringRSVP, GatheringReview, SyncMetadata, UserProfile, GatheringStatus, RSVPStatus, LocationPreset } from '../types';
-import { MOCK_USERS } from '../data/initialData';
 
 export class HaepungdanDatabase extends Dexie {
   gatherings!: Table<Gathering, string>;
@@ -17,19 +16,26 @@ export class HaepungdanDatabase extends Dexie {
       gatherings: 'id, roundNumber, status, dateTime, locationName, updatedAt, isDeleted',
       rsvps: 'id, gatheringId, userId, status, updatedAt',
       reviews: 'id, gatheringId, userId, rating, createdAt, updatedAt',
-      users: 'uid, email, role',
+      users: 'uid, email, role, lastLoginAt',
       syncMeta: 'key',
       locationPresets: 'id, name, detail, address, roadAddress, lat, lng, updatedAt',
     });
   }
 
   /**
-   * 초기 데이터베이스 시딩
+   * 초기 데이터베이스 시딩 및 더미 사용자 정리
    */
   async seedInitialData(): Promise<void> {
-    const userCount = await this.users.count();
-    if (userCount === 0) {
-      await this.users.bulkAdd(Object.values(MOCK_USERS));
+    // 더미 사용자(이서현, 박초보, 김바다 등 Mock) 로컬 IndexedDB에서 완전 삭제
+    const dummyUserIds = ['admin_user', 'member_kim', 'guest_park'];
+    for (const dId of dummyUserIds) {
+      await this.users.delete(dId);
+    }
+    const allUsers = await this.users.toArray();
+    for (const u of allUsers) {
+      if (u.uid.startsWith('user_') && u.displayName?.startsWith('신규가입자_')) {
+        await this.users.delete(u.uid);
+      }
     }
 
     // 활성 모임에서 사용 중이지 않은 locationPresets 로컬 IndexedDB에서 정리

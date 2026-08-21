@@ -5,6 +5,14 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-08-21
+
+### Added & Improved
+- **Purged Mock Dummy Users and Established Real Google OAuth User Management (`initialData.ts`, `db.ts`, `AuthContext.tsx`, `AdminManagementModal.tsx`, `firebase.ts`)**:
+  - Removed `MOCK_USERS` and seeded mock data logic completely from the codebase, purging legacy mock user entries locally and on Firestore.
+  - Automatically captures and syncs Google OAuth user details (`uid`, `displayName`, `email`, `photoURL`, `lastLoginAt`).
+  - Upgraded Admin Hub (`AdminManagementModal.tsx`) with a full user management table allowing real-time role changes (`ADMIN`, `MEMBER`, `GUEST`), recent login timestamp tracking, and user deletion.
+
 ## [0.4.9] - 2026-08-21
 
 ### Added & Improved

@@ -1,5 +1,14 @@
 # 해풍단 (Haepungdan) 변경 이력 (Changelog)
 
+## [v0.5.0] - 2026-08-21
+### 주요 변경 및 개선 사항 (Mock 더미 회원 및 시딩 전면 삭제, 실제 구글 로그인 기반 회원 관리 체계 구축)
+- **더미 회원(이서현, 김바다, 박초보 등 Mock) 및 시딩 코드 완전 삭제 (`initialData.ts`, `db.ts`, `firebase.ts`)**:
+  - `initialData.ts`의 `MOCK_USERS` 및 `seedInitialData()` 내 시딩 코드를 전면 제거.
+  - 기존 로컬 IndexedDB 및 Firebase Firestore 클라우드에 남아있던 Mock 회원 및 임의 테스트 계정을 일괄 영구 삭제.
+- **실제 구글 로그인 사용자 프로필 및 권한 동기화 관리 (`AuthContext.tsx`, `AdminManagementModal.tsx`, `firebase.ts`)**:
+  - 구글 로그인 시 사용자의 `uid`(아이디), `displayName`(이름), `email`, `photoURL`, `lastLoginAt`(최근 로그인 시간)을 자동 수집/갱신하여 Firestore와 동기화.
+  - 관리자 센터(`AdminManagementModal.tsx`)에서 실제 로그인한 회원 목록의 프로필, 아이디/이메일, 최근 로그인 일시, 가입일자를 확인하고 회원 등급(👑 관리자, 🏊 정회원, 🌱 게스트)을 실시간 변경 및 회원 삭제 지원.
+
 ## [v0.4.9] - 2026-08-21
 ### 주요 변경 및 개선 사항 (클라우드 연동 노출 UI 전면 제거 및 소스코드 고정 자동 연동화)
 - **클라우드 설정 UI 및 모달 전면 삭제 (`FirebaseConfigModal.tsx`, `Sidebar.tsx`, `AdminManagementModal.tsx`, `App.tsx`)**:

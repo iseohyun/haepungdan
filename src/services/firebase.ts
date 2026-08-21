@@ -19,7 +19,7 @@ import {
   writeBatch,
 } from 'firebase/firestore';
 import { db } from './db';
-import { Gathering, GatheringRSVP, GatheringReview, LocationPreset } from '../types';
+import { Gathering, GatheringRSVP, GatheringReview, LocationPreset, UserProfile } from '../types';
 
 
 
@@ -188,10 +188,30 @@ class FirebaseService {
     }
   }
 
+  public async saveUserToCloud(user: UserProfile): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'users', user.uid);
+      await setDoc(ref, this.cleanData(user), { merge: true });
+    } catch (err) {
+      console.warn('Firebase saveUserToCloud skipped:', err);
+    }
+  }
+
+  public async deleteUserFromCloud(uid: string): Promise<void> {
+    if (!this.firestore) return;
+    try {
+      const ref = doc(this.firestore, 'users', uid);
+      await deleteDoc(ref);
+    } catch (err) {
+      console.warn('Firebase deleteUserFromCloud skipped:', err);
+    }
+  }
+
   /**
    * =========================================================================
    * Local-First Delta Sync Engine (IndexedDB <-> Firestore 증분 동기화)
-   * 모임, 상세 집결위치(locationPresets), RSVP, 후기(reviews) 전체 증분 동기화
+   * 모임, 상세 집결위치(locationPresets), RSVP, 후기(reviews), 회원(users) 전체 증분 동기화
    * =========================================================================
    */
   public async syncDelta(): Promise<{ pushed: number; pulled: number }> {
@@ -464,10 +484,65 @@ class FirebaseService {
       console.warn('locationPresets LWW sync error:', e);
     }
 
-    // 5. 더미 데이터(매미성, 바람의 언덕 등) 자동 정리
+    // =========================================================================
+    // 5. USERS: 회원 프로필 및 등급(role) Last-Write-Wins 정밀 동기화
+    // =========================================================================
+    try {
+      const localUsers = await db.users.toArray();
+      const localUsersMap = new Map(localUsers.map((u) => [u.uid, u]));
+
+      const serverUsersSnap = await getDocs(collection(this.firestore, 'users'));
+      const serverUsersMap = new Map<string, UserProfile>();
+      serverUsersSnap.forEach((d) => {
+        serverUsersMap.set(d.id, d.data() as UserProfile);
+      });
+
+      const usersToPush: UserProfile[] = [];
+      const usersToPull: UserProfile[] = [];
+
+      for (const [uid, localUser] of localUsersMap.entries()) {
+        const serverUser = serverUsersMap.get(uid);
+        if (!serverUser) {
+          usersToPush.push(localUser);
+        } else {
+          const localTime = parseTime(localUser.approvedAt || localUser.lastLoginAt || localUser.createdAt);
+          const serverTime = parseTime(serverUser.approvedAt || serverUser.lastLoginAt || serverUser.createdAt);
+          if (localTime > serverTime) {
+            usersToPush.push(localUser);
+          } else if (serverTime > localTime) {
+            usersToPull.push(serverUser);
+          }
+        }
+      }
+
+      for (const [uid, serverUser] of serverUsersMap.entries()) {
+        if (!localUsersMap.has(uid)) {
+          usersToPull.push(serverUser);
+        }
+      }
+
+      if (usersToPush.length > 0) {
+        const batch = writeBatch(this.firestore);
+        for (const user of usersToPush) {
+          const ref = doc(this.firestore, 'users', user.uid);
+          batch.set(ref, this.cleanData(user), { merge: true });
+          pushedCount++;
+        }
+        await batch.commit();
+      }
+
+      if (usersToPull.length > 0) {
+        await db.users.bulkPut(usersToPull);
+        pulledCount += usersToPull.length;
+      }
+    } catch (e) {
+      console.warn('users LWW sync error:', e);
+    }
+
+    // 6. 더미 데이터(매미성, 바람의 언덕, Mock 회원 등) 자동 정리
     await this.cleanLegacyDummyData();
 
-    // 6. 동기화 타임스탬프 갱신
+    // 7. 동기화 타임스탬프 갱신
     await db.syncMeta.put({
       key: 'lastSyncTimestamp',
       value: now,
@@ -477,10 +552,11 @@ class FirebaseService {
   }
 
   /**
-   * 과거 테스트용 더미 데이터(매미성, 바람의 언덕 등) 클라우드 및 로컬 일괄 영구 삭제
+   * 과거 테스트용 더미 데이터(매미성, 바람의 언덕, Mock 유저 등) 클라우드 및 로컬 일괄 영구 삭제
    */
   async cleanLegacyDummyData(): Promise<void> {
     const dummyKeywords = ['매미성', '바람의 언덕', '바람의언덕', '도장포'];
+    const dummyUserIds = ['admin_user', 'member_kim', 'guest_park'];
 
     try {
       // 1. locationPresets 정리
@@ -510,6 +586,24 @@ class FirebaseService {
           await db.gatherings.delete(g.id);
           if (this.firestore) {
             await deleteDoc(doc(this.firestore, 'gatherings', g.id)).catch(() => {});
+          }
+        }
+      }
+
+      // 3. 더미 회원(Mock users) 정리
+      for (const dId of dummyUserIds) {
+        await db.users.delete(dId);
+        if (this.firestore) {
+          await deleteDoc(doc(this.firestore, 'users', dId)).catch(() => {});
+        }
+      }
+
+      const allUsers = await db.users.toArray();
+      for (const u of allUsers) {
+        if (u.uid.startsWith('user_') && u.displayName?.startsWith('신규가입자_')) {
+          await db.users.delete(u.uid);
+          if (this.firestore) {
+            await deleteDoc(doc(this.firestore, 'users', u.uid)).catch(() => {});
           }
         }
       }

@@ -105,6 +105,7 @@ export interface UserProfile {
   photoURL?: string;
   role: UserRole;
   approvedAt?: string;
+  lastLoginAt?: string; // 최근 로그인 일시 (ISO 8601)
   createdAt: string;
 }
 
