@@ -5,6 +5,14 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.9] - 2026-08-21
+
+### Added & Improved
+- **Removed Cloud Configuration UI and Hardcoded Auto-Connection (`FirebaseConfigModal.tsx`, `Sidebar.tsx`, `AdminManagementModal.tsx`, `App.tsx`)**:
+  - Completely deleted the user-facing Firebase configuration modal and cloud status cards from the UI.
+  - Hardcoded cloud configuration into the codebase for transparent and secure background synchronization.
+  - Cleaned up unused localStorage config methods in `FirebaseService`.
+
 ## [0.4.8] - 2026-08-21
 
 ### Added & Improved

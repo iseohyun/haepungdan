@@ -44,8 +44,6 @@ export const DEFAULT_FIREBASE_CONFIG: FirebaseConfig = {
   measurementId: "G-8V01H8KDTR"
 };
 
-const STORAGE_KEY = 'haepungdan_firebase_config';
-
 class FirebaseService {
   private app: FirebaseApp | null = null;
   public auth: Auth | null = null;
@@ -53,57 +51,30 @@ class FirebaseService {
   public isConfigured = false;
 
   constructor() {
-    this.initFromStorage();
+    this.initFirebase();
   }
 
   /**
-   * 저장소, 환경변수 또는 기본 공식 설정으로부터 Firebase 초기화
+   * 소스코드에 정의된 해풍단 공식 Firebase 설정으로 초기화
    */
-  public initFromStorage(): boolean {
+  public initFirebase(): boolean {
     try {
-      let config: FirebaseConfig | null = null;
+      const config: FirebaseConfig = import.meta.env.VITE_FIREBASE_API_KEY
+        ? {
+            apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+            authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+            projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+            storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+            appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
+            measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+          }
+        : DEFAULT_FIREBASE_CONFIG;
 
-      // 1. LocalStorage 확인 (사용자 정의 키 우선)
-      const savedConfig = localStorage.getItem(STORAGE_KEY);
-      if (savedConfig) {
-        config = JSON.parse(savedConfig);
-      } else if (import.meta.env.VITE_FIREBASE_API_KEY) {
-        // 2. Vite 환경변수 확인
-        config = {
-          apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-          authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
-          projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-          storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-          messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-          appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
-          measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-        };
-      } else {
-        // 3. 해풍단 공식 기본 Firebase 설정 적용
-        config = DEFAULT_FIREBASE_CONFIG;
-      }
-
-      if (config && config.apiKey && config.projectId) {
-        return this.initApp(config, false);
-      }
-    } catch (e) {
-      console.warn('Firebase auto-init skipped or failed:', e);
-    }
-    return false;
-  }
-
-  /**
-   * 설정 객체로 Firebase 수동/자동 초기화
-   */
-  public initApp(config: FirebaseConfig, saveToStorage = true): boolean {
-    try {
       this.app = getApps().length === 0 ? initializeApp(config) : getApp();
       this.auth = getAuth(this.app);
       this.firestore = getFirestore(this.app);
       this.isConfigured = true;
-      if (saveToStorage) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-      }
       return true;
     } catch (err) {
       console.error('Firebase init failed:', err);
@@ -113,30 +84,11 @@ class FirebaseService {
   }
 
   /**
-   * Firebase 설정 제거 (로컬 모드로 전환)
-   */
-  public clearConfig(): void {
-    localStorage.removeItem(STORAGE_KEY);
-    this.app = null;
-    this.auth = null;
-    this.firestore = null;
-    this.isConfigured = false;
-  }
-
-  /**
-   * 현재 저장된 설정 반환
-   */
-  public getConfig(): FirebaseConfig {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : DEFAULT_FIREBASE_CONFIG;
-  }
-
-  /**
    * Google OAuth 팝업 로그인
    */
   public async loginWithGoogle(): Promise<FirebaseUser | null> {
     if (!this.auth) {
-      this.initApp(DEFAULT_FIREBASE_CONFIG);
+      this.initFirebase();
     }
     if (!this.auth) throw new Error('Firebase Auth가 초기화되지 않았습니다.');
     

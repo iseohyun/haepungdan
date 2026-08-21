@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react';
 import { Gathering } from '../../types';
 import { useAuth } from '../../context/AuthContext';
 import { exportDatabaseToJson, importDatabaseFromJson } from '../../services/backup';
-import { firebaseService } from '../../services/firebase';
 import { APP_VERSION, RELEASE_TAG } from '../../constants/version';
 import {
   X,
@@ -18,7 +17,6 @@ import {
   Eye,
   ChevronRight,
   Compass,
-  Cloud,
   Settings,
   LogOut,
   Navigation,
@@ -33,7 +31,6 @@ interface SidebarProps {
   onFocusCoordinate: (x_pct: number, y_pct: number) => void;
   onOpenCreateModal: () => void;
   onOpenAdminModal?: () => void;
-  onOpenFirebaseConfig?: () => void;
   onOpenLocationPresets?: () => void;
 }
 
@@ -46,7 +43,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onFocusCoordinate,
   onOpenCreateModal,
   onOpenAdminModal,
-  onOpenFirebaseConfig,
   onOpenLocationPresets,
 }) => {
   const {
@@ -119,25 +115,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Google 로그인 버튼 핸들러
   const handleGoogleAuthClick = async () => {
-    if (!firebaseService.isConfigured) {
-      if (
-        confirm(
-          'Firebase 클라우드 연동이 아직 설정되지 않았습니다.\nFirebase 설정 모달을 열어 키를 입력하시겠습니까?\n(취소 시 임시 모의 로그인으로 접속됩니다.)'
-        )
-      ) {
-        if (onOpenFirebaseConfig) onOpenFirebaseConfig();
-        return;
-      }
-    }
-
     try {
       await loginWithGoogle();
     } catch (err: any) {
       alert(`로그인 실패: ${err.message || 'Google 팝업 인증을 확인해주세요.'}`);
     }
   };
-
-  const isCloudConnected = firebaseService.isConfigured;
 
   return (
     <>
@@ -345,45 +328,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* TAB 2: 관리 도구 & 클라우드 설정 */}
+          {/* TAB 2: 관리 도구 */}
           {activeTab === 'tools' && (
             <div className="space-y-3 p-1">
-              
-              {/* 클라우드 동기화 상태 */}
-              <div className={`p-3.5 rounded-2xl border space-y-2 ${
-                isCloudConnected ? 'bg-emerald-950/30 border-emerald-500/40' : 'bg-slate-950/60 border-slate-800'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                    <Cloud className="w-4 h-4 text-ocean-400" />
-                    클라우드 연동 상태
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    isCloudConnected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-800 text-slate-400'
-                  }`}>
-                    {isCloudConnected ? '🟢 연결됨' : '💻 로컬 모드'}
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-slate-400 leading-relaxed">
-                  {isCloudConnected
-                    ? 'Firebase Firestore 증분 동기화(Delta Sync)가 활성화되어 있습니다.'
-                    : 'Firebase 키를 입력하면 Google 로그인과 다중 기기 실시간 동기화가 활성화됩니다.'}
-                </p>
-
-                {onOpenFirebaseConfig && (
-                  <button
-                    onClick={() => {
-                      onOpenFirebaseConfig();
-                      if (window.innerWidth < 768) onClose();
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-ocean-600/30 hover:bg-ocean-600/50 text-ocean-300 border border-ocean-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-                  >
-                    <Settings className="w-3.5 h-3.5" />
-                    <span>Firebase 연동 설정 열기</span>
-                  </button>
-                )}
-              </div>
 
               {/* 지정주소(집결지) 관리 바로가기 */}
               {onOpenLocationPresets && (

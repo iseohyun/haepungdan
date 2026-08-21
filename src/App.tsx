@@ -10,7 +10,6 @@ import { CalendarWidget } from './components/CalendarWidget';
 import { GatheringDetailModal } from './components/GatheringDetailModal';
 import { CreateGatheringModal } from './components/CreateGatheringModal';
 import { AdminManagementModal } from './components/admin/AdminManagementModal';
-import { FirebaseConfigModal } from './components/admin/FirebaseConfigModal';
 import { LocationPresetsModal } from './components/admin/LocationPresetsModal';
 import { useAuth } from './context/AuthContext';
 
@@ -63,7 +62,6 @@ export const App: React.FC = () => {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
-  const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isLocationPresetsModalOpen, setIsLocationPresetsModalOpen] = useState(false);
 
   const hasInitializedRef = useRef(false);
@@ -228,7 +226,6 @@ export const App: React.FC = () => {
         onFocusCoordinate={handleFocusCoordinate}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
         onOpenAdminModal={() => setIsAdminModalOpen(true)}
-        onOpenFirebaseConfig={() => setIsFirebaseModalOpen(true)}
         onOpenLocationPresets={() => setIsLocationPresetsModalOpen(true)}
       />
 
@@ -281,24 +278,10 @@ export const App: React.FC = () => {
       {isAdminModalOpen && (
         <AdminManagementModal
           onClose={() => setIsAdminModalOpen(false)}
-          onOpenFirebaseConfig={() => {
-            setIsAdminModalOpen(false);
-            setIsFirebaseModalOpen(true);
-          }}
         />
       )}
 
-      {/* 8. Firebase 클라우드 연동 및 수동 동기화 모달 */}
-      {isFirebaseModalOpen && (
-        <FirebaseConfigModal
-          onClose={() => setIsFirebaseModalOpen(false)}
-          onConfigChanged={() => {
-            // 트리거 리렌더
-          }}
-        />
-      )}
-
-      {/* 9. 지정주소(집결지) 관리 및 수정/삭제 모달 */}
+      {/* 8. 지정주소(집결지) 관리 및 수정/삭제 모달 */}
       {isLocationPresetsModalOpen && (
         <LocationPresetsModal
           isOpen={isLocationPresetsModalOpen}

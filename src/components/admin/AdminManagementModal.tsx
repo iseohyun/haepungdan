@@ -10,19 +10,16 @@ import {
   User,
   Download,
   Upload,
-  Cloud,
   CheckCircle2,
   Sparkles,
 } from 'lucide-react';
 
 interface AdminManagementModalProps {
   onClose: () => void;
-  onOpenFirebaseConfig: () => void;
 }
 
 export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
   onClose,
-  onOpenFirebaseConfig,
 }) => {
   const users = useLiveQuery(() => db.users.toArray(), []) ?? [];
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -86,7 +83,7 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
                 해풍단 관리자 센터 (Admin Hub)
               </h2>
               <p className="text-xs text-slate-400">
-                회원 권한 승인제 관리 및 클라우드/로컬 백업 제어
+                회원 권한 승인제 관리 및 데이터베이스 백업/복원
               </p>
             </div>
           </div>
@@ -110,59 +107,39 @@ export const AdminManagementModal: React.FC<AdminManagementModalProps> = ({
             </div>
           )}
 
-          {/* 퀵 액션 카드 (클라우드 설정 및 백업 도구) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 flex flex-col justify-between gap-3">
-              <div>
-                <strong className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Cloud className="w-4 h-4 text-ocean-400" />
-                  클라우드 연동 상태
-                </strong>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Firebase Firestore 증분 동기화 및 Google OAuth 연동
-                </p>
-              </div>
-              <button
-                onClick={onOpenFirebaseConfig}
-                className="w-full py-2 px-3 rounded-xl bg-ocean-600/30 hover:bg-ocean-600/50 text-ocean-300 border border-ocean-500/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition"
-              >
-                <span>Firebase 연동 설정</span>
-              </button>
+          {/* 백업 도구 카드 */}
+          <div className="p-4 rounded-2xl glass-card border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <strong className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                <Download className="w-4 h-4 text-emerald-400" />
+                전체 DB 백업 & 복원
+              </strong>
+              <p className="text-[11px] text-slate-400 mt-1">
+                IndexedDB 전체 데이터를 JSON 파일로 내보내기/가져오기
+              </p>
             </div>
-
-            <div className="p-4 rounded-2xl glass-card border border-slate-800 flex flex-col justify-between gap-3">
-              <div>
-                <strong className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <Download className="w-4 h-4 text-emerald-400" />
-                  전체 DB 백업 & 복원
-                </strong>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  IndexedDB 전체 데이터를 JSON 파일로 내보내기/가져오기
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={exportDatabaseToJson}
-                  className="flex-1 py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1 transition"
-                >
-                  <Download className="w-3.5 h-3.5 text-ocean-400" />
-                  <span>백업 받기</span>
-                </button>
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="flex-1 py-2 px-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1 transition"
-                >
-                  <Upload className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>복원하기</span>
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportFile}
-                  className="hidden"
-                />
-              </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={exportDatabaseToJson}
+                className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5 text-ocean-400" />
+                <span>백업 받기</span>
+              </button>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="py-2 px-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition shadow-sm"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                <span>복원하기</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportFile}
+                className="hidden"
+              />
             </div>
           </div>
 
