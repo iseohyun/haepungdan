@@ -201,7 +201,7 @@ export function getNaverMapUrl(
 }
 
 /**
- * 티맵 (TMAP) 모바일 앱 / 인텐트 / 앱스토어 연동 실행 함수
+ * 티맵 (TMAP) 모바일 앱 / 인텐트 / 앱스토어 연동 실행 함수 (주소 기반 검색 스킴 우선)
  */
 export function openTMap(loc: NavigationLocationInput): void {
   // 1. 주소 문자열 추출 (1. 티맵 전용주소 -> 2. 도로명/지번/대표주소 -> 3. 상세집결지 -> 4. 장소명)
@@ -217,24 +217,15 @@ export function openTMap(loc: NavigationLocationInput): void {
     '거제시';
 
   const encAddress = encodeURIComponent(targetAddress);
-  const lat = loc.lat;
-  const lng = loc.lng;
-  const hasGps = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng);
-
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  // 1. URL Scheme 생성 (좌표 유무에 따라 분기)
-  const scheme = hasGps
-    ? `tmap://route?rGoName=${encAddress}&rGoX=${lng}&rGoY=${lat}`
-    : `tmap://search?name=${encAddress}`;
+  // 주소 검색 화면을 띄우는 Scheme
+  const searchScheme = `tmap://search?name=${encAddress}`;
 
   if (isAndroid) {
-    // 안드로이드: 미설치 시 구글 플레이스토어로 자동 이동하는 Intent URL
-    const intentUrl = hasGps
-      ? `intent://route?rGoName=${encAddress}&rGoX=${lng}&rGoY=${lat}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`
-      : `intent://search?name=${encAddress}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
-
+    // 안드로이드 Intent 방식 (티맵 검색 화면 바로 호출 및 미설치 시 플레이스토어 이동)
+    const intentUrl = `intent://search?name=${encAddress}#Intent;scheme=tmap;package=com.skt.tmap.ku;end`;
     window.location.href = intentUrl;
   } else if (isIOS) {
     // iOS: Scheme 실행 후 미설치 시 앱스토어 이동 처리
@@ -242,7 +233,7 @@ export function openTMap(loc: NavigationLocationInput): void {
       'https://apps.apple.com/kr/app/tmap-%EB%8C%80%EC%A4%91%EA%B5%90%ED%86%B5-%EB%82%B4%EB%B9%84/id431589174';
     const startTime = Date.now();
 
-    window.location.href = scheme;
+    window.location.href = searchScheme;
     setTimeout(() => {
       if (Date.now() - startTime < 1500) {
         window.location.href = appStoreUrl;
@@ -252,11 +243,11 @@ export function openTMap(loc: NavigationLocationInput): void {
 }
 
 /**
- * 티맵 (TMAP) 길찾기 URL 생성
+ * 티맵 (TMAP) 길찾기/검색 URL 생성
  */
 export function getTMapUrl(
   latOrLoc: number | NavigationLocationInput,
-  lng?: number,
+  _lng?: number,
   placeName?: string
 ): string {
   if (typeof latOrLoc === 'object') {
@@ -272,10 +263,10 @@ export function getTMapUrl(
       '거제시';
 
     const encAddress = encodeURIComponent(targetAddress);
-    return `tmap://route?rGoName=${encAddress}&rGoX=${latOrLoc.lng}&rGoY=${latOrLoc.lat}`;
+    return `tmap://search?name=${encAddress}`;
   }
   const encName = encodeURIComponent(placeName || '목적지');
-  return `tmap://route?rGoName=${encName}&rGoX=${lng ?? 0}&rGoY=${latOrLoc}`;
+  return `tmap://search?name=${encName}`;
 }
 
 /**
