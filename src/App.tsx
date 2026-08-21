@@ -200,7 +200,7 @@ export const App: React.FC = () => {
     : [];
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-950">
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
       {/* 1. 상단 플로팅 네비게이션 헤더 */}
       <TopBar
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}

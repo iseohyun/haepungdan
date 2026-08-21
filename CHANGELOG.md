@@ -5,6 +5,16 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-08-21
+
+### Fixed & Improved
+- **Comprehensive Light Mode Theme Engine (`app.css`, `tailwind.config.js`)**:
+  - Explicitly configured `darkMode: 'class'` in Tailwind config.
+  - Overhauled `.glass-panel` and `.glass-card` to high-opacity white glassmorphism.
+  - Automatically mapped all hardcoded dark backgrounds (`bg-slate-950/900/800`) to crisp light tones (`#ffffff`, `#f1f5f9`).
+  - Adjusted text contrast across all headings, subtitles, labels, and form controls to deep slate colors for 100% legibility.
+  - Customized map marker labels, calendar widgets, and modal form inputs for light theme.
+
 ## [0.4.0] - 2026-08-21
 
 ### Added
