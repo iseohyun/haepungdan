@@ -72,6 +72,28 @@
   border-color: rgba(56, 189, 248, 0.4);
 }
 
+/* 라이트 (화이트) 모드 스타일 */
+html.light body, html.light #root {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+
+html.light .glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(203, 213, 225, 0.85);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+html.light .glass-card {
+  background: rgba(248, 250, 252, 0.85);
+  border-color: rgba(226, 232, 240, 0.8);
+}
+
+html.light .glass-card:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(14, 165, 233, 0.5);
+}
+
 /* 5. 마커 펄스 및 모달 애니메이션 */
 @keyframes markerPulseGlow {
   0% {

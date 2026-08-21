@@ -39,6 +39,24 @@ export const App: React.FC = () => {
   // UI 상태 관리
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
+  const [isMapControlsOpen, setIsMapControlsOpen] = useState(true);
+  const [isGisOverlayOpen, setIsGisOverlayOpen] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(
+    () => localStorage.getItem('haepungdan_theme') !== 'light'
+  );
+
+  // 테마 모드 HTML 클래스 및 로컬스토리지 동기화
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+      localStorage.setItem('haepungdan_theme', 'dark');
+    } else {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('haepungdan_theme', 'light');
+    }
+  }, [isDarkMode]);
 
   const [selectedGatheringId, setSelectedGatheringId] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -183,12 +201,18 @@ export const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950">
-      {/* 1. 초슬림 상단 툴바 (사이드바 토글 및 달력 토글) */}
+      {/* 1. 상단 플로팅 네비게이션 헤더 */}
       <TopBar
-        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         isSidebarOpen={isSidebarOpen}
-        onToggleCalendar={() => setIsCalendarOpen(!isCalendarOpen)}
+        onToggleCalendar={() => setIsCalendarOpen((prev) => !prev)}
         isCalendarOpen={isCalendarOpen}
+        onToggleMapControls={() => setIsMapControlsOpen((prev) => !prev)}
+        isMapControlsOpen={isMapControlsOpen}
+        onToggleGisOverlay={() => setIsGisOverlayOpen((prev) => !prev)}
+        isGisOverlayOpen={isGisOverlayOpen}
+        onToggleTheme={() => setIsDarkMode((prev) => !prev)}
+        isDarkMode={isDarkMode}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
       />
 
@@ -212,6 +236,9 @@ export const App: React.FC = () => {
           gatherings={gatherings}
           selectedGatheringId={selectedGatheringId}
           onSelectGathering={handleSelectGathering}
+          onUpdateGathering={handleUpdateGathering}
+          isControlsOpen={isMapControlsOpen}
+          isGisOverlayOpen={isGisOverlayOpen}
         />
       </main>
 

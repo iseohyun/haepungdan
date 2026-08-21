@@ -4,16 +4,15 @@ import { LocationPosition } from '../types';
  * [거제도 정적 지도 기반 POI 오버레이 시스템 명세서]
  * Geographic Extent (EPSG:4326 / WGS84)
  *
- * 2026-08-21 보정: 마커 2(옥계), 4(조선박물관) 2개의 실측 기준점으로
- * 2점 선형 역산(Control Point Calibration)하여 구한 새 경계값.
- *   LNG: 278.9521 * lng − 35814.6273  → LNG_MIN=128.389876, span=0.358484
- *   LAT: −265.2506 * lat + 9298.0942  → LAT_MAX=35.053994, span=0.377002
+ * 2026-08-21 관리자 모드 정밀 실측 보정 (ΔX = -6.00px [-0.8559%], ΔY = +8.00px [+0.9756%]):
+ *   LNG: LNG_MIN = 128.392944, LNG_MAX = 128.751429
+ *   LAT: LAT_MAX = 35.057672, LAT_MIN = 34.680670
  */
 export const GEOJE_BOUNDS = {
-  LAT_MAX: 35.053994, // 북위 (보정)
-  LAT_MIN: 34.676992, // 남위 (보정)
-  LNG_MIN: 128.389876, // 서경 (보정)
-  LNG_MAX: 128.748361, // 동경 (보정)
+  LAT_MAX: 35.057672, // 북위 (정밀 보정)
+  LAT_MIN: 34.680670, // 남위 (정밀 보정)
+  LNG_MIN: 128.392944, // 서경 (정밀 보정)
+  LNG_MAX: 128.751429, // 동경 (정밀 보정)
   ASPECT_RATIO: 701 / 820,
 } as const;
 

@@ -5,6 +5,25 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-08-21
+
+### Added
+- **Draggable Marker Labels & DB Persistence (`MapViewer.tsx`, `App.tsx`, `types/index.ts`)**:
+  - Drag and drop marker labels to custom positions with automatic persistence to IndexedDB and Firebase Firestore.
+- **Geometric Border Distance Calculation & 18px Default Font (`MapViewer.tsx`)**:
+  - Exact 1em minimum spacing calculation based on closest label border to marker center using ray-box intersection.
+  - 50% semi-transparent background/border with 100% solid readable text.
+  - Scale-clamped rendering distance when zoomed in without overriding saved DB offset.
+- **Admin Calibration Lock Mode & 1px Arrow Key Precision (`MapViewer.tsx`)**:
+  - Admin-only lock/unlock icon button with live ghost/shadow marker rendering.
+  - Fine-grained 1px calibration using keyboard arrow keys with delta summary logged to browser console on lock.
+- **Calibrated Geo Bounds from Real Measurement (`coordinates.ts`)**:
+  - Recalibrated `GEOJE_BOUNDS` based on real measured displacement (`ΔX = -6px`, `ΔY = +8px`).
+- **Unified TopBar Button Group & Dark/Light Mode Switcher (`TopBar.tsx`, `App.tsx`, `app.css`)**:
+  - Consistent ON/OFF styling across all 5 toolbar buttons.
+  - Added bottom-left GIS overlay toggle button (`Crosshair`).
+  - Added Dark (🌙) / Light (☀️) theme switcher with `localStorage` persistence.
+
 ## [0.3.0] - 2026-08-21
 
 ### Added
