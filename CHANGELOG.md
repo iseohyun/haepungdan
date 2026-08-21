@@ -5,14 +5,29 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-21
+
+### Added
+- **Calibrated Geographic Bounds (`coordinates.ts`)**:
+  - Calibrated `GEOJE_BOUNDS` using real control point regression from markers 2 and 4.
+- **Zoom-Invariant Marker & Label Scaling (`MapViewer.tsx`)**:
+  - Maintained fixed pixel size for red dot markers, SVG connector lines, and text labels regardless of map zoom level using `scale(1 / currentScale)`.
+- **Overlapping Marker Clustering & Directional Offset Labels (`MapViewer.tsx`)**:
+  - Merged overlapping POIs into single red dots with combined round number labels (e.g., `1, 3, 5`).
+  - Positioned labels away from neighboring markers using inverse distance weighting.
+- **Active Round Highlighting in Merged Labels (`MapViewer.tsx`)**:
+  - Highlighted the active gathering's round number in red badge style within multi-round labels.
+- **Revamped Calendar Widget Navigation & Event Highlight (`CalendarWidget.tsx`, `App.tsx`)**:
+  - Borderless previous/next meeting arrow buttons that cycle through gatherings without opening detail modal.
+  - Red round number badge in calendar header with `YYYY.M` date format.
+  - Pink highlights for gathering dates with auto-navigation to the gathering's month.
+- **Initial Load Auto-Selection & Modal Loop Fix (`App.tsx`)**:
+  - Automatically loads the latest gathering on initial app launch without triggering infinite modal reopen loops.
+
 ## [0.2.2] - 2026-08-21
 
 ### Added
-- **4-Control-Point GPS Calibration & 2D Affine Transformation (`coordinates.ts`, `MapViewer.tsx`)**:
-  - Calibrated GPS to SVG/Map percentage coordinates using Least Squares Regression on 4 physical control points (Markers 1, 2, 4, 7).
-  - Residual error reduced to <0.1% (<0.5px) for sub-pixel marker alignment.
 - **Firebase Firestore Real-time Cloud Persistence & Bidirectional Delta Sync (`firebase.ts`, `App.tsx`)**:
-
   - Live persistence to Firestore collections (`gatherings`, `rsvps`, `reviews`) upon create/update/delete.
   - Automatic push of local authentic data and pull of cloud updates on app start and refresh.
 - **Revamped Gathering Forms & Direct Coordinate Modal (`CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`, `DirectInputModal.tsx`)**:

@@ -40,14 +40,42 @@ export const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
 
-  const [selectedGathering, setSelectedGathering] = useState<Gathering | null>(null);
+  const [selectedGatheringId, setSelectedGatheringId] = useState<string | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
 
-  // 모임 선택 핸들러
-  const handleSelectGathering = (gathering: Gathering) => {
-    setSelectedGathering(gathering);
+  const hasInitializedRef = useRef(false);
+
+  // 최초 접속 시 제일 마지막 회차(최신 모임) 1회 자동 로딩 (모달은 열지 않고 지도/달력 상태만 로딩)
+  useEffect(() => {
+    if (!hasInitializedRef.current && gatherings.length > 0) {
+      const active = gatherings.filter((g) => !g.isDeleted);
+      if (active.length > 0) {
+        const latest = [...active].sort((a, b) => {
+          if (a.roundNumber !== undefined && b.roundNumber !== undefined) {
+            return b.roundNumber - a.roundNumber;
+          }
+          return new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime();
+        })[0];
+        if (latest) {
+          hasInitializedRef.current = true;
+          setSelectedGatheringId(latest.id);
+        }
+      }
+    }
+  }, [gatherings]);
+
+  // 현재 선택된 모임 객체
+  const selectedGathering = gatherings.find((g) => g.id === selectedGatheringId) ?? null;
+
+  // 사용자가 모임을 직접 선택/클릭했을 때
+  const handleSelectGathering = (gathering: Gathering, openModal: boolean = true) => {
+    setSelectedGatheringId(gathering.id);
+    if (openModal) {
+      setIsDetailModalOpen(true);
+    }
   };
 
   // 좌표 포커스 이동
@@ -84,14 +112,6 @@ export const App: React.FC = () => {
     if (existing) {
       const fullUpdated = { ...existing, ...updates, updatedAt: now };
       await firebaseService.saveGatheringToCloud(fullUpdated);
-    }
-
-    if (selectedGathering && selectedGathering.id === gatheringId) {
-      setSelectedGathering({
-        ...selectedGathering,
-        ...updates,
-        updatedAt: now,
-      });
     }
   };
 
@@ -148,13 +168,13 @@ export const App: React.FC = () => {
     if (existing) {
       await firebaseService.saveGatheringToCloud({ ...existing, isDeleted: true, updatedAt: new Date().toISOString() });
     }
-    setSelectedGathering(null);
+    setSelectedGatheringId(null);
+    setIsDetailModalOpen(false);
   };
 
   // 선택된 모임의 RSVP 및 후기 실시간 필터링
   const selectedGatheringRsvps = selectedGathering
     ? allRsvps.filter((r) => r.gatheringId === selectedGathering.id)
-
     : [];
 
   const selectedGatheringReviews = selectedGathering
@@ -177,7 +197,7 @@ export const App: React.FC = () => {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         gatherings={gatherings}
-        selectedGatheringId={selectedGathering?.id || null}
+        selectedGatheringId={selectedGatheringId}
         onSelectGathering={handleSelectGathering}
         onFocusCoordinate={handleFocusCoordinate}
         onOpenCreateModal={() => setIsCreateModalOpen(true)}
@@ -190,7 +210,7 @@ export const App: React.FC = () => {
         <MapViewer
           ref={mapViewerRef}
           gatherings={gatherings}
-          selectedGatheringId={selectedGathering?.id || null}
+          selectedGatheringId={selectedGatheringId}
           onSelectGathering={handleSelectGathering}
         />
       </main>
@@ -200,18 +220,18 @@ export const App: React.FC = () => {
         isOpen={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
         gatherings={gatherings}
-        selectedGatheringId={selectedGathering?.id || null}
+        selectedGatheringId={selectedGatheringId}
         onSelectGathering={handleSelectGathering}
         onFocusCoordinate={handleFocusCoordinate}
       />
 
       {/* 5. 모임 상세 모달 */}
-      {selectedGathering && (
+      {isDetailModalOpen && selectedGathering && (
         <GatheringDetailModal
           gathering={selectedGathering}
           rsvps={selectedGatheringRsvps}
           reviews={selectedGatheringReviews}
-          onClose={() => setSelectedGathering(null)}
+          onClose={() => setIsDetailModalOpen(false)}
           onUpdateRsvp={handleUpdateRsvp}
           onAddReview={handleAddReview}
           onDeleteReview={handleDeleteReview}
