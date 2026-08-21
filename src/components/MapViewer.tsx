@@ -129,6 +129,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       startY: 0,
       cursor: 'grab',
       canvas: true,
+      excludeClass: 'panzoom-exclude',
       // 1:1 마우스 드래그 속도 일치 및 정밀 경계 이탈 방지
       setTransform: (elem, { scale, x, y }) => {
         if (!containerRef.current) {
@@ -232,10 +233,10 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
-      // 1. 개별 레이블 드래그
+      // 1. 개별 레이블 드래그 (마커가 unscale(1/currentScale) 되어 있으므로 화면 픽셀과 1:1 일치)
       if (draggingRef.current) {
-        const deltaX = (clientX - draggingRef.current.startClientX) / currentScale;
-        const deltaY = (clientY - draggingRef.current.startClientY) / currentScale;
+        const deltaX = clientX - draggingRef.current.startClientX;
+        const deltaY = clientY - draggingRef.current.startClientY;
 
         if (Math.abs(deltaX) > 2 || Math.abs(deltaY) > 2) {
           draggingRef.current.hasMoved = true;
@@ -568,20 +569,14 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
 
           // 레이블의 마커와 가장 가까운 border로부터 마커까지의 최소 거리는 1em (labelFontSize)
           const minCenterDist = getMinCenterOffset(dirX, dirY, group.gatherings.length, labelFontSize);
-          const maxCenterDist = minCenterDist + labelFontSize * 0.8;
 
           let renderDx = rawOffset.dx;
           let renderDy = rawOffset.dy;
 
-          // 거리가 최소 1em보다 가까우면 1em 이격거리로 밀어냄
+          // 거리가 최소 1em보다 가까우면 마커 점과 겹치지 않도록 최소 이격거리로 밀어냄
           if (rawDist < minCenterDist) {
             renderDx = dirX * minCenterDist;
             renderDy = dirY * minCenterDist;
-          }
-          // 지도가 확대되거나 거리가 너무 멀어지면 강제로 1em 근처로 가까워짐 (서버 미저장)
-          else if (rawDist > maxCenterDist) {
-            renderDx = dirX * maxCenterDist;
-            renderDy = dirY * maxCenterDist;
           }
 
           // 회차별 gathering 맵핑 및 정렬
@@ -683,8 +678,24 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
 
                 {/* 드래그 가능한 레이블 (배경/테두리 50% 투명도, 글자는 100% 완전 불투명) */}
                 <div
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    if (e.button !== 0 && e.pointerType === 'mouse') return;
+                    draggingRef.current = {
+                      groupKey: group.groupKey,
+                      startClientX: e.clientX,
+                      startClientY: e.clientY,
+                      startDx: rawOffset.dx,
+                      startDy: rawOffset.dy,
+                      hasMoved: false,
+                      gatherings: group.gatherings,
+                      latestDx: rawOffset.dx,
+                      latestDy: rawOffset.dy,
+                    };
+                  }}
                   onMouseDown={(e) => {
                     e.stopPropagation();
+                    if (e.button !== 0) return;
                     draggingRef.current = {
                       groupKey: group.groupKey,
                       startClientX: e.clientX,
@@ -721,7 +732,7 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                     whiteSpace: 'nowrap',
                     fontSize: `${labelFontSize}px`,
                   }}
-                  className={`px-2 py-0.5 rounded-lg shadow-lg border flex items-center gap-1 font-mono font-black select-none cursor-move backdrop-blur-xs transition-colors ${
+                  className={`panzoom-exclude px-2 py-0.5 rounded-lg shadow-lg border flex items-center gap-1 font-mono font-black select-none cursor-move backdrop-blur-xs transition-colors ${
                     isSelected
                       ? 'bg-slate-900/50 border-red-500/50 ring-1 ring-red-400/30'
                       : isRecruiting

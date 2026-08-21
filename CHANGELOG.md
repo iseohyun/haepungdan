@@ -5,6 +5,14 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.5] - 2026-08-21
+
+### Added & Improved
+- **Fixed & Optimized Marker Label Dragging Interaction (`MapViewer.tsx`)**:
+  - Excluded Panzoom intercept on labels using `excludeClass: 'panzoom-exclude'` and full pointer event capture (`onPointerDown`).
+  - Removed restrictive `maxCenterDist` boundary clamp to allow full user freedom in dragging labels across map areas.
+  - Adjusted drag delta calculations to match unscaled 1:1 screen pixel coordinates.
+
 ## [0.5.4] - 2026-08-21
 
 ### Added & Improved
