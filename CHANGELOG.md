@@ -5,6 +5,14 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.6] - 2026-08-21
+
+### Added & Improved
+- **Last-Write-Wins (LWW) Timestamp Comparison Sync Engine (`firebase.ts`)**:
+  - Implemented millisecond-precise `updatedAt` comparison across gatherings, RSVPs, reviews, and location presets.
+  - Ensures local changes are only pushed if newer than the server, and server updates are pulled if newer than local data.
+  - Completely prevents outdated client cache from overwriting newer updates made from other devices (e.g. mobile admin edits).
+
 ## [0.4.5] - 2026-08-21
 
 ### Added & Improved

@@ -246,155 +246,276 @@ class FirebaseService {
     if (!this.firestore) throw new Error('Firestore가 연결되지 않았습니다.');
 
     const now = new Date().toISOString();
-
     let pushedCount = 0;
     let pulledCount = 0;
 
-    // 1. GATHERINGS: 로컬의 활성 모임(isDeleted가 아닌 것)을 서버로 PUSH
-    const allLocalGatherings = await db.gatherings.toArray();
-    const activeLocalGatherings = allLocalGatherings.filter((g) => !g.isDeleted);
-    if (activeLocalGatherings.length > 0) {
-      const batch = writeBatch(this.firestore);
-      for (const g of activeLocalGatherings) {
-        const ref = doc(this.firestore, 'gatherings', g.id);
-        batch.set(ref, this.cleanData(g), { merge: true });
-        pushedCount++;
-      }
-      await batch.commit();
-    }
+    // Helper: ISO 문자열을 밀리초 타임스탬프로 안전 변환
+    const parseTime = (iso?: string): number => (iso ? new Date(iso).getTime() : 0);
 
-    // 2. GATHERINGS: 서버 -> 로컬 PULL (서버의 실제 모임 목록으로 로컬 IndexedDB 정규화)
+    // =========================================================================
+    // 1. GATHERINGS: Last-Write-Wins (최종 수정 시점 비교 정밀 동기화)
+    // =========================================================================
     try {
+      const allLocalGatherings = await db.gatherings.toArray();
+      const localGatheringsMap = new Map(allLocalGatherings.map((g) => [g.id, g]));
+
       const serverGatheringsSnap = await getDocs(collection(this.firestore, 'gatherings'));
-      const serverGatherings = serverGatheringsSnap.docs.map((d) => d.data() as Gathering);
-      const serverIds = new Set(serverGatherings.map((g) => g.id));
+      const serverGatheringsMap = new Map<string, Gathering>();
+      serverGatheringsSnap.forEach((d) => {
+        serverGatheringsMap.set(d.id, d.data() as Gathering);
+      });
 
-      // 서버에 없는 모임 또는 삭제된 더미 모임은 로컬에서도 정리
-      for (const lg of allLocalGatherings) {
-        if (lg.isDeleted || (!serverIds.has(lg.id) && (lg.id.startsWith('gat_2026_') || lg.id.startsWith('gat_dummy_')))) {
-          await db.gatherings.delete(lg.id);
-        }
-      }
+      const gatheringsToPush: Gathering[] = [];
+      const gatheringsToPull: Gathering[] = [];
 
-      if (serverGatherings.length > 0) {
-        await db.gatherings.bulkPut(serverGatherings);
-        pulledCount += serverGatherings.length;
-      }
-    } catch (e) {
-      console.warn('gatherings pull skipped or failed:', e);
-    }
+      // 1-1. 로컬 데이터 기준 비교
+      for (const [id, localGat] of localGatheringsMap.entries()) {
+        const serverGat = serverGatheringsMap.get(id);
+        if (!serverGat) {
+          // 서버에 없는 신규 모임 (삭제되지 않은 경우 PUSH)
+          if (!localGat.isDeleted) {
+            gatheringsToPush.push(localGat);
+          }
+        } else {
+          // 둘 다 존재: updatedAt 타임스탬프 비교
+          const localTime = parseTime(localGat.updatedAt);
+          const serverTime = parseTime(serverGat.updatedAt);
 
-    // 3. RSVPS: 로컬 -> 서버 PUSH
-
-    const localRsvps = await db.rsvps.toArray();
-    if (localRsvps.length > 0) {
-      const batch = writeBatch(this.firestore);
-      for (const r of localRsvps) {
-        const ref = doc(this.firestore, 'rsvps', r.id);
-        batch.set(ref, this.cleanData(r), { merge: true });
-        pushedCount++;
-      }
-      await batch.commit();
-    }
-
-    // 6. RSVPS: 서버 -> 로컬 PULL
-    try {
-      const serverRsvpsSnap = await getDocs(collection(this.firestore, 'rsvps'));
-      if (!serverRsvpsSnap.empty) {
-        const serverRsvps = serverRsvpsSnap.docs.map((d) => d.data() as GatheringRSVP);
-        await db.rsvps.bulkPut(serverRsvps);
-        pulledCount += serverRsvps.length;
-      }
-    } catch (e) {
-      console.warn('rsvps pull skipped or failed:', e);
-    }
-
-    // 7. REVIEWS: 로컬 -> 서버 PUSH & 서버 -> 로컬 PULL
-    const localReviews = await db.reviews.toArray();
-    if (localReviews.length > 0) {
-      const batch = writeBatch(this.firestore);
-      for (const rev of localReviews) {
-        const ref = doc(this.firestore, 'reviews', rev.id);
-        batch.set(ref, this.cleanData(rev), { merge: true });
-        pushedCount++;
-      }
-      await batch.commit();
-    }
-
-    try {
-      const serverReviewsSnap = await getDocs(collection(this.firestore, 'reviews'));
-      if (!serverReviewsSnap.empty) {
-        const serverReviews = serverReviewsSnap.docs.map((d) => d.data() as GatheringReview);
-        await db.reviews.bulkPut(serverReviews);
-        pulledCount += serverReviews.length;
-      }
-    } catch (e) {
-      console.warn('reviews pull skipped:', e);
-    }
-
-    // 8. LOCATION PRESETS: 활성 모임에서 사용 중인 프리셋만 선별 동기화 & 미사용 프리셋 로컬/서버 전면 삭제
-    const allGatherings = await db.gatherings.toArray();
-    const activeGatherings = allGatherings.filter((g) => !g.isDeleted);
-    const usedPresetIds = new Set<string>();
-    const usedPresetNames = new Set<string>();
-
-    for (const g of activeGatherings) {
-      if (g.locationPresetId) usedPresetIds.add(g.locationPresetId);
-      if (g.locationName) usedPresetNames.add(g.locationName.trim());
-    }
-
-    const localPresets = await db.locationPresets.toArray();
-    const validPresetsToPush: LocationPreset[] = [];
-
-    for (const preset of localPresets) {
-      const isUsed = usedPresetIds.has(preset.id) || (preset.name && usedPresetNames.has(preset.name.trim()));
-      if (isUsed) {
-        validPresetsToPush.push(preset);
-      } else {
-        // 사용 중이지 않은 프리셋은 로컬 DB에서 삭제하고, 서버에서도 영구 삭제
-        await db.locationPresets.delete(preset.id);
-        const ref = doc(this.firestore, 'locationPresets', preset.id);
-        await deleteDoc(ref).catch(() => {});
-      }
-    }
-
-    if (validPresetsToPush.length > 0) {
-      const batch = writeBatch(this.firestore);
-      for (const preset of validPresetsToPush) {
-        const ref = doc(this.firestore, 'locationPresets', preset.id);
-        batch.set(ref, this.cleanData(preset), { merge: true });
-        pushedCount++;
-      }
-      await batch.commit();
-    }
-
-    try {
-      const serverPresetsSnap = await getDocs(collection(this.firestore, 'locationPresets'));
-      if (!serverPresetsSnap.empty) {
-        const serverPresets: LocationPreset[] = [];
-        for (const d of serverPresetsSnap.docs) {
-          const p = d.data() as LocationPreset;
-          const isUsed = usedPresetIds.has(p.id) || (p.name && usedPresetNames.has(p.name?.trim() || ''));
-          if (isUsed) {
-            serverPresets.push(p);
-          } else {
-            // 서버에 남아있는 미사용 프리셋도 함께 정리
-            await deleteDoc(doc(this.firestore, 'locationPresets', p.id)).catch(() => {});
+          if (localTime > serverTime) {
+            // 로컬이 더 최신 -> 서버로 PUSH
+            gatheringsToPush.push(localGat);
+          } else if (serverTime > localTime) {
+            // 서버가 더 최신 -> 로컬로 PULL
+            gatheringsToPull.push(serverGat);
           }
         }
-        if (serverPresets.length > 0) {
-          await db.locationPresets.bulkPut(serverPresets);
-          pulledCount += serverPresets.length;
+      }
+
+      // 1-2. 서버에만 존재하는 모임 다운로드
+      for (const [id, serverGat] of serverGatheringsMap.entries()) {
+        if (!localGatheringsMap.has(id)) {
+          gatheringsToPull.push(serverGat);
         }
       }
+
+      // PUSH 실행
+      if (gatheringsToPush.length > 0) {
+        const batch = writeBatch(this.firestore);
+        for (const g of gatheringsToPush) {
+          const ref = doc(this.firestore, 'gatherings', g.id);
+          batch.set(ref, this.cleanData(g), { merge: true });
+          pushedCount++;
+        }
+        await batch.commit();
+      }
+
+      // PULL 실행
+      if (gatheringsToPull.length > 0) {
+        await db.gatherings.bulkPut(gatheringsToPull);
+        pulledCount += gatheringsToPull.length;
+      }
     } catch (e) {
-      console.warn('locationPresets pull skipped:', e);
+      console.warn('gatherings LWW sync error:', e);
     }
 
-    // 9. 더미 데이터(매미성, 바람의 언덕 등) 자동 정리
+    // =========================================================================
+    // 2. RSVPS: Last-Write-Wins 정밀 동기화
+    // =========================================================================
+    try {
+      const localRsvps = await db.rsvps.toArray();
+      const localRsvpsMap = new Map(localRsvps.map((r) => [r.id, r]));
+
+      const serverRsvpsSnap = await getDocs(collection(this.firestore, 'rsvps'));
+      const serverRsvpsMap = new Map<string, GatheringRSVP>();
+      serverRsvpsSnap.forEach((d) => {
+        serverRsvpsMap.set(d.id, d.data() as GatheringRSVP);
+      });
+
+      const rsvpsToPush: GatheringRSVP[] = [];
+      const rsvpsToPull: GatheringRSVP[] = [];
+
+      for (const [id, localRsvp] of localRsvpsMap.entries()) {
+        const serverRsvp = serverRsvpsMap.get(id);
+        if (!serverRsvp) {
+          rsvpsToPush.push(localRsvp);
+        } else {
+          const localTime = parseTime(localRsvp.updatedAt);
+          const serverTime = parseTime(serverRsvp.updatedAt);
+          if (localTime > serverTime) {
+            rsvpsToPush.push(localRsvp);
+          } else if (serverTime > localTime) {
+            rsvpsToPull.push(serverRsvp);
+          }
+        }
+      }
+
+      for (const [id, serverRsvp] of serverRsvpsMap.entries()) {
+        if (!localRsvpsMap.has(id)) {
+          rsvpsToPull.push(serverRsvp);
+        }
+      }
+
+      if (rsvpsToPush.length > 0) {
+        const batch = writeBatch(this.firestore);
+        for (const r of rsvpsToPush) {
+          const ref = doc(this.firestore, 'rsvps', r.id);
+          batch.set(ref, this.cleanData(r), { merge: true });
+          pushedCount++;
+        }
+        await batch.commit();
+      }
+
+      if (rsvpsToPull.length > 0) {
+        await db.rsvps.bulkPut(rsvpsToPull);
+        pulledCount += rsvpsToPull.length;
+      }
+    } catch (e) {
+      console.warn('rsvps LWW sync error:', e);
+    }
+
+    // =========================================================================
+    // 3. REVIEWS: Last-Write-Wins 정밀 동기화
+    // =========================================================================
+    try {
+      const localReviews = await db.reviews.toArray();
+      const localReviewsMap = new Map(localReviews.map((rev) => [rev.id, rev]));
+
+      const serverReviewsSnap = await getDocs(collection(this.firestore, 'reviews'));
+      const serverReviewsMap = new Map<string, GatheringReview>();
+      serverReviewsSnap.forEach((d) => {
+        serverReviewsMap.set(d.id, d.data() as GatheringReview);
+      });
+
+      const reviewsToPush: GatheringReview[] = [];
+      const reviewsToPull: GatheringReview[] = [];
+
+      for (const [id, localRev] of localReviewsMap.entries()) {
+        const serverRev = serverReviewsMap.get(id);
+        if (!serverRev) {
+          reviewsToPush.push(localRev);
+        } else {
+          const localTime = parseTime(localRev.updatedAt);
+          const serverTime = parseTime(serverRev.updatedAt);
+          if (localTime > serverTime) {
+            reviewsToPush.push(localRev);
+          } else if (serverTime > localTime) {
+            reviewsToPull.push(serverRev);
+          }
+        }
+      }
+
+      for (const [id, serverRev] of serverReviewsMap.entries()) {
+        if (!localReviewsMap.has(id)) {
+          reviewsToPull.push(serverRev);
+        }
+      }
+
+      if (reviewsToPush.length > 0) {
+        const batch = writeBatch(this.firestore);
+        for (const rev of reviewsToPush) {
+          const ref = doc(this.firestore, 'reviews', rev.id);
+          batch.set(ref, this.cleanData(rev), { merge: true });
+          pushedCount++;
+        }
+        await batch.commit();
+      }
+
+      if (reviewsToPull.length > 0) {
+        await db.reviews.bulkPut(reviewsToPull);
+        pulledCount += reviewsToPull.length;
+      }
+    } catch (e) {
+      console.warn('reviews LWW sync error:', e);
+    }
+
+    // =========================================================================
+    // 4. LOCATION PRESETS: 활성 모임 참조 프리셋 LWW 동기화 & 고아 프리셋 삭제
+    // =========================================================================
+    try {
+      const allGatherings = await db.gatherings.toArray();
+      const activeGatherings = allGatherings.filter((g) => !g.isDeleted);
+      const usedPresetIds = new Set<string>();
+      const usedPresetNames = new Set<string>();
+
+      for (const g of activeGatherings) {
+        if (g.locationPresetId) usedPresetIds.add(g.locationPresetId);
+        if (g.locationName) usedPresetNames.add(g.locationName.trim());
+      }
+
+      const localPresets = await db.locationPresets.toArray();
+      const localPresetsMap = new Map<string, LocationPreset>();
+
+      for (const preset of localPresets) {
+        const isUsed = usedPresetIds.has(preset.id) || (preset.name && usedPresetNames.has(preset.name.trim()));
+        if (isUsed) {
+          localPresetsMap.set(preset.id, preset);
+        } else {
+          // 미사용 프리셋 로컬 및 서버 삭제
+          await db.locationPresets.delete(preset.id);
+          const ref = doc(this.firestore, 'locationPresets', preset.id);
+          await deleteDoc(ref).catch(() => {});
+        }
+      }
+
+      const serverPresetsSnap = await getDocs(collection(this.firestore, 'locationPresets'));
+      const serverPresetsMap = new Map<string, LocationPreset>();
+
+      for (const d of serverPresetsSnap.docs) {
+        const p = d.data() as LocationPreset;
+        const isUsed = usedPresetIds.has(p.id) || (p.name && usedPresetNames.has(p.name?.trim() || ''));
+        if (isUsed) {
+          serverPresetsMap.set(p.id, p);
+        } else {
+          await deleteDoc(doc(this.firestore, 'locationPresets', p.id)).catch(() => {});
+        }
+      }
+
+      const presetsToPush: LocationPreset[] = [];
+      const presetsToPull: LocationPreset[] = [];
+
+      for (const [id, localPreset] of localPresetsMap.entries()) {
+        const serverPreset = serverPresetsMap.get(id);
+        if (!serverPreset) {
+          presetsToPush.push(localPreset);
+        } else {
+          const localTime = parseTime(localPreset.updatedAt);
+          const serverTime = parseTime(serverPreset.updatedAt);
+          if (localTime > serverTime) {
+            presetsToPush.push(localPreset);
+          } else if (serverTime > localTime) {
+            presetsToPull.push(serverPreset);
+          }
+        }
+      }
+
+      for (const [id, serverPreset] of serverPresetsMap.entries()) {
+        if (!localPresetsMap.has(id)) {
+          presetsToPull.push(serverPreset);
+        }
+      }
+
+      if (presetsToPush.length > 0) {
+        const batch = writeBatch(this.firestore);
+        for (const preset of presetsToPush) {
+          const ref = doc(this.firestore, 'locationPresets', preset.id);
+          batch.set(ref, this.cleanData(preset), { merge: true });
+          pushedCount++;
+        }
+        await batch.commit();
+      }
+
+      if (presetsToPull.length > 0) {
+        await db.locationPresets.bulkPut(presetsToPull);
+        pulledCount += presetsToPull.length;
+      }
+    } catch (e) {
+      console.warn('locationPresets LWW sync error:', e);
+    }
+
+    // 5. 더미 데이터(매미성, 바람의 언덕 등) 자동 정리
     await this.cleanLegacyDummyData();
 
-    // 10. 동기화 타임스탬프 갱신
+    // 6. 동기화 타임스탬프 갱신
     await db.syncMeta.put({
       key: 'lastSyncTimestamp',
       value: now,
