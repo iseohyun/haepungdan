@@ -1,6 +1,6 @@
-export const APP_VERSION = 'v0.5.3';
+export const APP_VERSION = 'v0.5.4';
 export const BUILD_DATE = '2026-08-21';
-export const RELEASE_TAG = '20260821-v0.5.3';
+export const RELEASE_TAG = '20260821-v0.5.4';
 
 
 

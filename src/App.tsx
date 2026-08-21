@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './services/db';
 import { firebaseService } from './services/firebase';
@@ -11,7 +11,9 @@ import { GatheringDetailModal } from './components/GatheringDetailModal';
 import { CreateGatheringModal } from './components/CreateGatheringModal';
 import { AdminManagementModal } from './components/admin/AdminManagementModal';
 import { LocationPresetsModal } from './components/admin/LocationPresetsModal';
+import { PhotoLightboxModal } from './components/media/PhotoLightboxModal';
 import { useAuth } from './context/AuthContext';
+import { X } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { currentUser } = useAuth();
@@ -63,6 +65,8 @@ export const App: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isLocationPresetsModalOpen, setIsLocationPresetsModalOpen] = useState(false);
+  const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false);
+  const [isPhotoWidgetDismissed, setIsPhotoWidgetDismissed] = useState(false);
 
   const hasInitializedRef = useRef(false);
 
@@ -88,8 +92,25 @@ export const App: React.FC = () => {
   // 현재 선택된 모임 객체
   const selectedGathering = gatherings.find((g) => g.id === selectedGatheringId) ?? null;
 
+  // 선택된 모임의 모든 사진 목록 (대표 썸네일 + 후기 사진들)
+  const selectedGatheringPhotos = useMemo(() => {
+    if (!selectedGathering) return [];
+    const photos: string[] = [];
+    if (selectedGathering.thumbnailUrl) photos.push(selectedGathering.thumbnailUrl);
+    const relatedReviews = allReviews.filter((r) => r.gatheringId === selectedGathering.id);
+    for (const rev of relatedReviews) {
+      if (rev.images && rev.images.length > 0) {
+        photos.push(...rev.images);
+      }
+    }
+    return Array.from(new Set(photos));
+  }, [selectedGathering, allReviews]);
+
   // 사용자가 모임을 직접 선택/클릭했을 때
   const handleSelectGathering = (gathering: Gathering, openModal: boolean = true) => {
+    if (gathering.id !== selectedGatheringId) {
+      setIsPhotoWidgetDismissed(false);
+    }
     setSelectedGatheringId(gathering.id);
     if (openModal) {
       setIsDetailModalOpen(true);
@@ -253,11 +274,11 @@ export const App: React.FC = () => {
       />
 
       {/* 5. 좌하단 선택된 모임 대표 이미지 플로팅 포토 위젯 */}
-      {selectedGathering && selectedGathering.thumbnailUrl && (
+      {selectedGathering && selectedGathering.thumbnailUrl && !isPhotoWidgetDismissed && (
         <div
-          onClick={() => setIsDetailModalOpen(true)}
+          onClick={() => setIsPhotoLightboxOpen(true)}
           className="absolute bottom-12 sm:bottom-14 left-3 md:left-4 z-20 group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-300 select-none"
-          title={`${selectedGathering.title} (클릭하여 상세 보기)`}
+          title={`${selectedGathering.title} (클릭하여 사진 크게 보기)`}
         >
           <div className="relative rounded-2xl overflow-hidden glass-panel p-1 border border-slate-700/90 shadow-2xl transition-all duration-300 group-hover:scale-105 group-hover:border-ocean-500/80 bg-slate-900/85 backdrop-blur-md">
             {/* 썸네일 이미지 */}
@@ -275,6 +296,19 @@ export const App: React.FC = () => {
                 </div>
               )}
 
+              {/* 우상단 닫기 (X) 버튼 */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPhotoWidgetDismissed(true);
+                }}
+                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/75 hover:bg-rose-600 text-white transition shadow-md z-10"
+                title="사진 닫기"
+              >
+                <X className="w-3 h-3" />
+              </button>
+
               {/* 하단 그라디언트 + 장소명 */}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2 pt-4">
                 <span className="text-[11px] font-bold text-white leading-tight truncate block drop-shadow-md">
@@ -286,7 +320,15 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 6. 모임 상세 모달 */}
+      {/* 6. 사진 크게 보기 (풀스크린 라이트박스 모달) */}
+      <PhotoLightboxModal
+        isOpen={isPhotoLightboxOpen}
+        images={selectedGatheringPhotos}
+        title={selectedGathering?.title}
+        onClose={() => setIsPhotoLightboxOpen(false)}
+      />
+
+      {/* 7. 모임 상세 모달 */}
       {isDetailModalOpen && selectedGathering && (
         <GatheringDetailModal
           gathering={selectedGathering}
@@ -301,21 +343,21 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* 6. 새 모임 개설 / 제안 모달 (직접 GPS 좌표 입력 방식) */}
+      {/* 8. 새 모임 개설 / 제안 모달 (직접 GPS 좌표 입력 방식) */}
       <CreateGatheringModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onCreate={handleCreateGathering}
       />
 
-      {/* 7. 관리자 센터 (회원 승인 / 권한 관리 / 백업) 모달 */}
+      {/* 9. 관리자 센터 (회원 승인 / 권한 관리 / 백업) 모달 */}
       {isAdminModalOpen && (
         <AdminManagementModal
           onClose={() => setIsAdminModalOpen(false)}
         />
       )}
 
-      {/* 8. 지정주소(집결지) 관리 및 수정/삭제 모달 */}
+      {/* 10. 지정주소(집결지) 관리 및 수정/삭제 모달 */}
       {isLocationPresetsModalOpen && (
         <LocationPresetsModal
           isOpen={isLocationPresetsModalOpen}
