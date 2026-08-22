@@ -28,7 +28,7 @@ interface SidebarProps {
   onClose: () => void;
   gatherings: Gathering[];
   selectedGatheringId: string | null;
-  onSelectGathering: (gathering: Gathering) => void;
+  onSelectGathering: (gathering: Gathering, openModal?: boolean) => void;
   onFocusCoordinate: (x_pct: number, y_pct: number) => void;
   onOpenCreateModal: () => void;
   onOpenAdminModal?: () => void;
@@ -290,13 +290,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <div
                       key={g.id}
                       onClick={() => {
-                        onSelectGathering(g);
-                        onFocusCoordinate(g.position.x_pct, g.position.y_pct);
-                        if (window.innerWidth < 768) onClose();
+                        if (isSelected) {
+                          // 이미 선택된 모임을 다시 클릭한 경우: 상세 모달 출력
+                          onSelectGathering(g, true);
+                          if (window.innerWidth < 768) onClose();
+                        } else {
+                          // 최초 선택 시: 모달을 열지 않고 선택 및 지도 좌표 이동만 수행
+                          onSelectGathering(g, false);
+                          onFocusCoordinate(g.position.x_pct, g.position.y_pct);
+                        }
                       }}
                       className={`p-3 rounded-2xl border transition cursor-pointer flex flex-col gap-1.5 ${
                         isSelected
-                          ? 'bg-ocean-600/25 border-ocean-400 ring-1 ring-ocean-400/50 text-white'
+                          ? 'bg-ocean-600/25 border-ocean-400 ring-1 ring-ocean-400/50 text-white shadow-lg'
                           : 'glass-card text-slate-200'
                       }`}
                     >
@@ -332,7 +338,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                             </span>
                           )}
                         </div>
-                        <span className="text-ocean-400 flex items-center gap-0.5">
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onSelectGathering(g, true);
+                            if (window.innerWidth < 768) onClose();
+                          }}
+                          className="text-ocean-400 hover:text-cyan-300 flex items-center gap-0.5 transition"
+                        >
                           상세보기 <ChevronRight className="w-3 h-3" />
                         </span>
                       </div>

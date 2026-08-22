@@ -5,6 +5,56 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.39] - 2026-08-22
+
+### Added & Improved
+- **Expanding Red Circle Pulse Animation for Selected Marker (`MapViewer.tsx`)**:
+  - Added an expanding red radar wave ping animation to the selected marker for clear and vibrant visual feedback on the map.
+
+## [0.5.38] - 2026-08-22
+
+### Added & Improved
+- **Two-Step Interaction on Sidebar Gathering Selection (`Sidebar.tsx`)**:
+  - Clicking an unselected gathering now smoothly focuses the map coordinate without opening the detail modal.
+  - Re-clicking an already selected gathering or clicking the 'Details' link opens the full gathering detail modal.
+
+## [0.5.37] - 2026-08-22
+
+### Added & Improved
+- **Hide All Title Tooltips When Candidate Selection Popup is Open (`MapViewer.tsx`)**:
+  - Automatically hid all existing title labels whenever the multi-event candidate popup is active, ensuring a distraction-free selection experience.
+
+## [0.5.36] - 2026-08-22
+
+### Added & Improved
+- **Remove Numeric Badge on Overlapping Markers (`MapViewer.tsx`)**:
+  - Removed the `+N` badge from overlapping markers to retain a clean and minimal dot pin style.
+
+## [0.5.35] - 2026-08-22
+
+### Added & Improved
+- **Postpone Event Selection Until User Chooses from Multi-Marker Popup (`MapViewer.tsx`)**:
+  - Prevented automatic selection of the latest event when clicking overlapping markers, cleanly postponing event display until a specific gathering is chosen inside the popup.
+
+## [0.5.34] - 2026-08-22
+
+### Added & Improved
+- **Prevent Auto-Reopening of Photo Widget on Meeting Change (`App.tsx`)**:
+  - Removed forced photo widget dismissal reset from `handleSelectGathering` so that the user's manual OFF state is strictly respected across all gathering selections and auto-cycling.
+
+## [0.5.33] - 2026-08-22
+
+### Added & Improved
+- **Candidate Gathering Selection Popup on Overlapping Markers (`MapViewer.tsx`)**:
+  - Displayed a `+N` badge on pins with multiple overlapping events.
+  - Implemented a floating candidate selection popup on marker click, allowing users to choose and view any specific gathering held at that location.
+
+## [0.5.32] - 2026-08-22
+
+### Added & Improved
+- **Pause All Background Animations When Sidebar Menu is Open (`App.tsx`)**:
+  - Automatically paused calendar auto-cycling, photo slide rotation, and 3D wave drift whenever the sidebar menu is open.
+
 ## [0.5.31] - 2026-08-22
 
 ### Added & Improved

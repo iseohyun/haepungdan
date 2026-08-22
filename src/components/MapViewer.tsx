@@ -13,6 +13,7 @@ import {
   ImagePlus,
   ImageMinus,
   Waves,
+  X,
 } from 'lucide-react';
 import { gpsToPercent } from '../utils/coordinates';
 
@@ -55,6 +56,9 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
 
   const [cursorGps, setCursorGps] = useState<{ lat: number; lng: number; x_pct: number; y_pct: number } | null>(null);
   const [currentScale, setCurrentScale] = useState<number>(1.0);
+
+  // 다중 모임 위치 클릭 시 후보 모임 목록 팝업 상태 (groupKey)
+  const [activeGroupPopupKey, setActiveGroupPopupKey] = useState<string | null>(null);
 
   // 관리자 전용: 마커 보정 (자물쇠 모드)
   const [isCalibrationUnlocked, setIsCalibrationUnlocked] = useState<boolean>(false);
@@ -498,8 +502,13 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
               <div
                 onClick={(e) => {
                   e.stopPropagation();
-                  const sel = group.gatherings.find((g) => g.id === selectedGatheringId);
-                  onSelectGathering(sel ?? group.gatherings[0]);
+                  if (group.gatherings.length === 1) {
+                    setActiveGroupPopupKey(null);
+                    onSelectGathering(group.gatherings[0]);
+                  } else {
+                    // 다중 모임 위치: 모임 선택/출력을 보류하고 후보 선택 팝업만 토글
+                    setActiveGroupPopupKey((prev) => (prev === group.groupKey ? null : group.groupKey));
+                  }
                 }}
                 style={{
                   left: `${currentPosX}%`,
@@ -509,12 +518,20 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   transformOrigin: 'center center',
                 }}
                 className={`cursor-pointer group flex items-center justify-center pointer-events-auto ${
-                  isSelected ? 'z-50' : 'z-5'
+                  isSelected || activeGroupPopupKey === group.groupKey ? 'z-50' : 'z-5'
                 }`}
                 title={group.gatherings.map((g) => `${g.roundNumber !== undefined ? (g.roundNumber === 0 ? '[번개]' : `[${g.roundNumber}차]`) : ''} ${g.title}`).join('\n')}
               >
-                {/* 모집 중 펄스 링 */}
-                {isRecruiting && (
+                {/* 1. 현재 선택된 마커: 바깥쪽으로 퍼져나가는 붉은 원 펄스 애니메이션 */}
+                {isSelected && (
+                  <>
+                    <div className="absolute inset-0 -m-3.5 rounded-full bg-red-500/60 animate-ping pointer-events-none" />
+                    <div className="absolute inset-0 -m-1.5 rounded-full bg-red-500/40 animate-pulse pointer-events-none" />
+                  </>
+                )}
+
+                {/* 2. 모집 중 펄스 링 (선택되지 않았을 때) */}
+                {!isSelected && isRecruiting && (
                   <div className="absolute inset-0 -m-1.5 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />
                 )}
 
@@ -529,8 +546,89 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   }`}
                 />
 
-                {/* [선택된 마커] 타이핑 애니메이션 모임명 말풍선 툴팁 (완성 사이즈 border 고정 & 좌측 고정 타이핑) */}
-                {isSelected && selectedGathering && fullTargetTitle && (
+                {/* [다중 모임 팝업] 해당 위치에 여러 모임이 있을 때 선택할 수 있는 후보 목록 팝업 */}
+                {activeGroupPopupKey === group.groupKey && group.gatherings.length > 1 && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 z-[99999] pointer-events-auto whitespace-normal animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center select-none"
+                    style={{ minWidth: '250px', maxWidth: '320px' }}
+                  >
+                    <div className="glass-panel w-full rounded-2xl border-2 border-cyan-400/90 bg-slate-900/98 text-white shadow-2xl p-2.5 flex flex-col gap-1.5 backdrop-blur-2xl">
+                      {/* 팝업 헤더 */}
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-800 px-1">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping shrink-0" />
+                          <span className="text-xs font-bold text-cyan-300 truncate">
+                            {group.gatherings[0].locationName}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-mono font-bold border border-cyan-500/30 shrink-0">
+                            {group.gatherings.length}개 모임
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveGroupPopupKey(null);
+                          }}
+                          className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition"
+                          title="닫기"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* 모임 후보 목록 (시간 역순 / 최신순 정렬) */}
+                      <div className="flex flex-col gap-1 max-h-48 overflow-y-auto custom-scrollbar">
+                        {[...group.gatherings]
+                          .sort((a, b) => {
+                            if (a.roundNumber !== undefined && b.roundNumber !== undefined) {
+                              return b.roundNumber - a.roundNumber;
+                            }
+                            return new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime();
+                          })
+                          .map((g) => {
+                            const isGSelected = g.id === selectedGatheringId;
+                            const gDate = new Date(g.dateTime);
+                            const formattedDate = `${gDate.getFullYear()}.${gDate.getMonth() + 1}.${gDate.getDate()}`;
+
+                            return (
+                              <div
+                                key={g.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onSelectGathering(g);
+                                  setActiveGroupPopupKey(null);
+                                }}
+                                className={`p-2 rounded-xl transition cursor-pointer flex items-center justify-between gap-2 border ${
+                                  isGSelected
+                                    ? 'bg-cyan-600/30 border-cyan-400 text-white font-bold'
+                                    : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:bg-slate-700/80 hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                  {g.roundNumber !== undefined && (
+                                    <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-ocean-600 text-white shrink-0">
+                                      {g.roundNumber === 0 ? '번개' : `${g.roundNumber}차`}
+                                    </span>
+                                  )}
+                                  <span className="text-xs truncate block">{g.title}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-400 shrink-0 font-mono">
+                                  {formattedDate}
+                                </span>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                    {/* 아래쪽 꼬리표 삼각형 */}
+                    <div className="w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-cyan-400/90 -mt-px" />
+                  </div>
+                )}
+
+                {/* [선택된 마커] 타이핑 애니메이션 모임명 말풍선 툴팁 (선택 팝업이 떠있지 않을 때만 표시) */}
+                {isSelected && selectedGathering && fullTargetTitle && activeGroupPopupKey === null && (
                   <div
                     className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 z-[9999] pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center"
                   >

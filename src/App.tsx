@@ -97,8 +97,17 @@ export const App: React.FC = () => {
     dirY: 1,
   });
 
+  // 메뉴(사이드바) 열림, 사진 전체보기(라이트박스), 또는 각종 모달이 열려있는 동안 모든 애니메이션 일시 정지
+  const isAnimationPaused =
+    isSidebarOpen ||
+    isPhotoLightboxOpen ||
+    isDetailModalOpen ||
+    isCreateModalOpen ||
+    isAdminModalOpen ||
+    isLocationPresetsModalOpen;
+
   useEffect(() => {
-    if (!isPhotoWaveAnimated || isPhotoLightboxOpen) {
+    if (!isPhotoWaveAnimated || isAnimationPaused) {
       waveDriftRef.current = { curX: 0, curY: 0, dirX: 1, dirY: 1 };
       setWaveStyle({ dx: 0, dy: 0, rotZ: 0, rotX: 0, rotY: 0, duration: 300 });
       return;
@@ -169,7 +178,7 @@ export const App: React.FC = () => {
       isMounted = false;
       clearTimeout(timerId);
     };
-  }, [isPhotoWaveAnimated, isPhotoLightboxOpen]);
+  }, [isPhotoWaveAnimated, isAnimationPaused]);
 
   // 좌하단 사진 위젯 크기 조절 (0: 최소 ~ 7: 최대, 기본: 3 [2단계 상향])
   const [photoSizeLevel, setPhotoSizeLevel] = useState<number>(3);
@@ -251,12 +260,12 @@ export const App: React.FC = () => {
   }, [selectedGatheringId]);
 
   useEffect(() => {
-    if (validPhotos.length <= 1 || isPhotoLightboxOpen) return;
+    if (validPhotos.length <= 1 || isAnimationPaused) return;
     const timer = setInterval(() => {
       setCurrentPhotoIndex((prev) => (prev + 1) % validPhotos.length);
     }, 3500);
     return () => clearInterval(timer);
-  }, [validPhotos.length, isPhotoLightboxOpen]);
+  }, [validPhotos.length, isAnimationPaused]);
 
   const DEFAULT_FALLBACK_PHOTO = `${import.meta.env.BASE_URL}Haepungdan-drive.png`;
 
@@ -268,10 +277,6 @@ export const App: React.FC = () => {
 
   // 사용자가 모임을 직접 선택/클릭했을 때
   const handleSelectGathering = (gathering: Gathering, openModal: boolean = true) => {
-    if (gathering.id !== selectedGatheringId) {
-      setIsPhotoWidgetDismissed(false);
-      setIsPhotoWidgetDismissing(false);
-    }
     setSelectedGatheringId(gathering.id);
     if (openModal) {
       setIsDetailModalOpen(true);
@@ -523,7 +528,7 @@ export const App: React.FC = () => {
         selectedGatheringId={selectedGatheringId}
         onSelectGathering={handleSelectGathering}
         onFocusCoordinate={handleFocusCoordinate}
-        isPaused={isPhotoLightboxOpen}
+        isPaused={isAnimationPaused}
       />
 
       {/* 6. 사진 크게 보기 (풀스크린 라이트박스 모달) */}
