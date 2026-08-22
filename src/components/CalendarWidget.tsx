@@ -10,6 +10,7 @@ interface CalendarWidgetProps {
   selectedGatheringId: string | null;
   onSelectGathering: (gathering: Gathering, openModal?: boolean) => void;
   onFocusCoordinate?: (x_pct: number, y_pct: number) => void;
+  isPaused?: boolean;
 }
 
 export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
@@ -19,6 +20,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
   selectedGatheringId,
   onSelectGathering,
   onFocusCoordinate,
+  isPaused = false,
 }) => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   // 달력 기본 접기(축소) 상태
@@ -120,16 +122,16 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     }
   }, []);
 
-  // 자동 회차 넘김 애니메이션 타이머
+  // 자동 회차 넘김 애니메이션 타이머 (사진 전체보기 등 일시정지 상태일 땐 타이머 정지)
   useEffect(() => {
-    if (autoInterval <= 0) return;
+    if (autoInterval <= 0 || isPaused) return;
 
     const timer = setInterval(() => {
       handleNextMeeting();
     }, autoInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [autoInterval, handleNextMeeting]);
+  }, [autoInterval, isPaused, handleNextMeeting]);
 
   // 자동 넘김 간격 순환 토글: 2초(기본) -> 3초 -> 0초(정지) -> 1초 -> 2초
   const handleCycleInterval = () => {

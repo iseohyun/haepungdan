@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 import { Gathering } from '../types';
 import { percentToGps } from '../utils/coordinates';
@@ -346,16 +346,19 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
   const [displayedTitle, setDisplayedTitle] = useState('');
   const [isTypingComplete, setIsTypingComplete] = useState(false);
 
+  const fullTargetTitle = useMemo(() => {
+    if (!selectedGathering) return '';
+    return selectedGathering.roundNumber !== undefined
+      ? (selectedGathering.roundNumber === 0 ? `[번개] ${selectedGathering.locationName}` : `[제${selectedGathering.roundNumber}차] ${selectedGathering.locationName}`)
+      : (selectedGathering.title || selectedGathering.locationName);
+  }, [selectedGathering]);
+
   useEffect(() => {
-    if (!selectedGathering) {
+    if (!fullTargetTitle) {
       setDisplayedTitle('');
       setIsTypingComplete(false);
       return;
     }
-
-    const targetTitle = selectedGathering.roundNumber !== undefined
-      ? (selectedGathering.roundNumber === 0 ? `[번개] ${selectedGathering.locationName}` : `[제${selectedGathering.roundNumber}차] ${selectedGathering.locationName}`)
-      : (selectedGathering.title || selectedGathering.locationName);
 
     setDisplayedTitle('');
     setIsTypingComplete(false);
@@ -363,15 +366,15 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
     let currentIdx = 0;
     const timer = setInterval(() => {
       currentIdx++;
-      setDisplayedTitle(targetTitle.slice(0, currentIdx));
-      if (currentIdx >= targetTitle.length) {
+      setDisplayedTitle(fullTargetTitle.slice(0, currentIdx));
+      if (currentIdx >= fullTargetTitle.length) {
         clearInterval(timer);
         setIsTypingComplete(true);
       }
     }, 35);
 
     return () => clearInterval(timer);
-  }, [selectedGatheringId]);
+  }, [selectedGatheringId, fullTargetTitle]);
 
   // ── 마커 그룹화 ──────────────────────────────────────────────
   // 위치가 가까운 마커들을 하나의 그룹으로 합침 (1.5% 이내 = 동일 위치)
@@ -526,19 +529,39 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   }`}
                 />
 
-                {/* [선택된 마커] 타이핑 애니메이션 모임명 말풍선 툴팁 (최상위 z-index z-[9999]: 사진 카드 z-20보다 위) */}
-                {isSelected && selectedGathering && displayedTitle && (
+                {/* [선택된 마커] 타이핑 애니메이션 모임명 말풍선 툴팁 (완성 사이즈 border 고정 & 좌측 고정 타이핑) */}
+                {isSelected && selectedGathering && fullTargetTitle && (
                   <div
                     className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 z-[9999] pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center"
                   >
-                    <div className="glass-panel px-5 py-2.5 rounded-2xl border-2 border-ocean-400/90 bg-slate-900/95 text-white shadow-2xl flex items-center gap-3 backdrop-blur-lg">
-                      <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
-                      <span className="text-2xl sm:text-4xl font-black text-cyan-300 tracking-wide drop-shadow-lg leading-none">
-                        {displayedTitle}
-                      </span>
-                      {!isTypingComplete && (
-                        <span className="w-2.5 h-7 bg-cyan-400 animate-pulse ml-0.5 rounded-sm" />
-                      )}
+                    <div className="glass-panel px-4 py-2 rounded-2xl border-2 border-ocean-400/90 bg-slate-900/95 text-white shadow-2xl flex items-center gap-2.5 backdrop-blur-lg">
+                      <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping shrink-0" />
+                      
+                      {/* 고정 너비 컨테이너 (Ghost 텍스트로 완성 사이즈 확보 + 실제 텍스트 좌측 고정 타이핑) */}
+                      <div className="relative flex items-center">
+                        {/* 1. 완성 크기 고정용 투명 텍스트 (Ghost text) */}
+                        <span
+                          style={{ fontSize: '1.5em' }}
+                          className="font-black text-transparent tracking-wide leading-none select-none pointer-events-none invisible"
+                          aria-hidden="true"
+                        >
+                          {fullTargetTitle}
+                          <span className="w-[3px] ml-0.5 inline-block" />
+                        </span>
+
+                        {/* 2. 실제 좌측에서 우측으로 타이핑되는 텍스트 레이어 */}
+                        <div className="absolute inset-0 flex items-center justify-start">
+                          <span
+                            style={{ fontSize: '1.5em' }}
+                            className="font-black text-cyan-300 tracking-wide drop-shadow-lg leading-none"
+                          >
+                            {displayedTitle}
+                          </span>
+                          {!isTypingComplete && (
+                            <span className="w-[3px] h-[1.2em] bg-cyan-400 animate-pulse ml-0.5 rounded-sm inline-block align-middle shrink-0" />
+                          )}
+                        </div>
+                      </div>
                     </div>
                     {/* 아래쪽 꼬리표 삼각형 (마커 중심 상단) */}
                     <div className="w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-ocean-400/90 -mt-px" />

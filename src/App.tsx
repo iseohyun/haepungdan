@@ -98,7 +98,7 @@ export const App: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!isPhotoWaveAnimated) {
+    if (!isPhotoWaveAnimated || isPhotoLightboxOpen) {
       waveDriftRef.current = { curX: 0, curY: 0, dirX: 1, dirY: 1 };
       setWaveStyle({ dx: 0, dy: 0, rotZ: 0, rotX: 0, rotY: 0, duration: 300 });
       return;
@@ -169,7 +169,7 @@ export const App: React.FC = () => {
       isMounted = false;
       clearTimeout(timerId);
     };
-  }, [isPhotoWaveAnimated]);
+  }, [isPhotoWaveAnimated, isPhotoLightboxOpen]);
 
   // 좌하단 사진 위젯 크기 조절 (0: 최소 ~ 7: 최대, 기본: 3 [2단계 상향])
   const [photoSizeLevel, setPhotoSizeLevel] = useState<number>(3);
@@ -185,6 +185,16 @@ export const App: React.FC = () => {
       setIsPhotoWidgetDismissed(true);
       setIsPhotoWidgetDismissing(false);
     }, 400);
+  };
+
+  // 사진 열기/닫기 토글 핸들러
+  const handleTogglePhotoWidget = () => {
+    if (isPhotoWidgetDismissed) {
+      setIsPhotoWidgetDismissed(false);
+      setIsPhotoWidgetDismissing(false);
+    } else {
+      handleDismissPhotoWidget();
+    }
   };
 
   const hasInitializedRef = useRef(false);
@@ -241,12 +251,12 @@ export const App: React.FC = () => {
   }, [selectedGatheringId]);
 
   useEffect(() => {
-    if (validPhotos.length <= 1) return;
+    if (validPhotos.length <= 1 || isPhotoLightboxOpen) return;
     const timer = setInterval(() => {
       setCurrentPhotoIndex((prev) => (prev + 1) % validPhotos.length);
     }, 3500);
     return () => clearInterval(timer);
-  }, [validPhotos.length]);
+  }, [validPhotos.length, isPhotoLightboxOpen]);
 
   const DEFAULT_FALLBACK_PHOTO = `${import.meta.env.BASE_URL}Haepungdan-drive.png`;
 
@@ -379,6 +389,8 @@ export const App: React.FC = () => {
         isSidebarOpen={isSidebarOpen}
         onToggleCalendar={() => setIsCalendarOpen((prev) => !prev)}
         isCalendarOpen={isCalendarOpen}
+        onTogglePhotoWidget={handleTogglePhotoWidget}
+        isPhotoWidgetOpen={!isPhotoWidgetDismissed}
         onToggleMapControls={() => setIsMapControlsOpen((prev) => !prev)}
         isMapControlsOpen={isMapControlsOpen}
         onToggleGisOverlay={() => setIsGisOverlayOpen((prev) => !prev)}
@@ -417,7 +429,7 @@ export const App: React.FC = () => {
           photoWidget={
             selectedGathering && currentDisplayPhoto && !isPhotoWidgetDismissed ? (
               <div
-                className={`absolute bottom-12 sm:bottom-14 left-3 md:left-4 z-20 select-none ${
+                className={`absolute bottom-[58px] sm:bottom-14 left-3 md:left-4 z-20 select-none ${
                   isPhotoWidgetDismissing ? 'opacity-0 blur-md scale-95 transition-all duration-400' : 'animate-photo-blur-in'
                 }`}
               >
@@ -438,19 +450,19 @@ export const App: React.FC = () => {
                   title={`${selectedGathering.title} (클릭하여 사진 크게 보기)`}
                 >
                   <div className="relative rounded-2xl overflow-hidden glass-panel p-1 border border-slate-700/90 shadow-2xl transition-all duration-300 group-hover:border-ocean-500/80 bg-slate-900/85 backdrop-blur-md">
-                    {/* 썸네일 이미지 (리모콘으로 크기 조절 가능) */}
+                    {/* 썸네일 이미지 (모바일 2단계 축소 및 리모콘 크기 조절 지원) */}
                     <div
                       className={`rounded-xl overflow-hidden relative bg-slate-950 transition-all duration-300 ${
                         [
-                          'w-36 h-36 sm:w-48 sm:h-48',             // Level 0: 최소 크기 (144px / 192px)
-                          'w-48 h-48 sm:w-64 sm:h-64',             // Level 1: 이전 기본 크기 (192px / 256px)
-                          'w-60 h-60 sm:w-80 sm:h-80',             // Level 2: (240px / 320px)
-                          'w-72 h-72 sm:w-96 sm:h-96',             // Level 3: 기본 크기 (288px / 384px - 2단계 확장 기본값)
-                          'w-84 h-84 sm:w-[440px] sm:h-[440px]',   // Level 4: (336px / 440px)
-                          'w-96 h-96 sm:w-[520px] sm:h-[520px]',   // Level 5: (384px / 520px)
-                          'w-[420px] h-[420px] sm:w-[600px] sm:h-[600px]', // Level 6: (420px / 600px)
-                          'w-[480px] h-[480px] sm:w-[680px] sm:h-[680px]', // Level 7: 최대 크기 (480px / 680px)
-                        ][photoSizeLevel] || 'w-72 h-72 sm:w-96 sm:h-96'
+                          'w-28 h-28 sm:w-48 sm:h-48',             // Level 0: 최소 크기 (112px / 192px)
+                          'w-36 h-36 sm:w-64 sm:h-64',             // Level 1: (144px / 256px)
+                          'w-44 h-44 sm:w-80 sm:h-80',             // Level 2: (176px / 320px)
+                          'w-48 h-48 sm:w-96 sm:h-96',             // Level 3: 기본 크기 (모바일 192px / 데스크탑 384px - 모바일 2단계 축소)
+                          'w-60 h-60 sm:w-[440px] sm:h-[440px]',   // Level 4: (240px / 440px)
+                          'w-72 h-72 sm:w-[520px] sm:h-[520px]',   // Level 5: (288px / 520px)
+                          'w-84 h-84 sm:w-[600px] sm:h-[600px]',   // Level 6: (336px / 600px)
+                          'w-96 h-96 sm:w-[680px] sm:h-[680px]',   // Level 7: 최대 크기 (384px / 680px)
+                        ][photoSizeLevel] || 'w-48 h-48 sm:w-96 sm:h-96'
                       }`}
                     >
                       <img
@@ -511,6 +523,7 @@ export const App: React.FC = () => {
         selectedGatheringId={selectedGatheringId}
         onSelectGathering={handleSelectGathering}
         onFocusCoordinate={handleFocusCoordinate}
+        isPaused={isPhotoLightboxOpen}
       />
 
       {/* 6. 사진 크게 보기 (풀스크린 라이트박스 모달) */}

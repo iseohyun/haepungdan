@@ -1,11 +1,13 @@
 import React from 'react';
-import { Menu, Calendar as CalendarIcon, Gamepad2, Crosshair, Sun, Moon } from 'lucide-react';
+import { Menu, Calendar as CalendarIcon, Image as ImageIcon, Gamepad2, Crosshair, Sun, Moon } from 'lucide-react';
 
 interface TopBarProps {
   onToggleSidebar: () => void;
   isSidebarOpen: boolean;
   onToggleCalendar: () => void;
   isCalendarOpen: boolean;
+  onTogglePhotoWidget?: () => void;
+  isPhotoWidgetOpen?: boolean;
   onToggleMapControls?: () => void;
   isMapControlsOpen?: boolean;
   onToggleGisOverlay?: () => void;
@@ -19,6 +21,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   isSidebarOpen,
   onToggleCalendar,
   isCalendarOpen,
+  onTogglePhotoWidget,
+  isPhotoWidgetOpen = true,
   onToggleMapControls,
   isMapControlsOpen = true,
   onToggleGisOverlay,
@@ -55,6 +59,17 @@ export const TopBar: React.FC<TopBarProps> = ({
       >
         <CalendarIcon className="w-4 h-4" />
       </button>
+
+      {/* 2.5 사진 위젯 열기 / 닫기 토글 */}
+      {onTogglePhotoWidget && (
+        <button
+          onClick={onTogglePhotoWidget}
+          className={getButtonClass(isPhotoWidgetOpen)}
+          title={`대표 사진 위젯 ${isPhotoWidgetOpen ? '숨기기' : '표시'}`}
+        >
+          <ImageIcon className="w-4 h-4" />
+        </button>
+      )}
 
       {/* 3. 지도 컨트롤러(리모콘) ON / OFF 토글 */}
       {onToggleMapControls && (

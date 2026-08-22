@@ -60,9 +60,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
+  // 관리자만 관리 & 설정 탭 접근 허용
+  const effectiveTab = isAdmin ? activeTab : 'gatherings';
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 모임 목록 필터링
+  // 모임 목록 필터링 (시간 역순 정렬: 최신 회차 / 최근 모임이 가장 상단에 위치)
   const filteredGatherings = gatherings
     .filter((g) => !g.isDeleted)
     .filter((g) => {
@@ -74,7 +77,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       const matchStatus = statusFilter === 'ALL' || g.status === statusFilter;
       return matchSearch && matchStatus;
     })
-    .sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
+    .sort((a, b) => {
+      if (a.roundNumber !== undefined && b.roundNumber !== undefined) {
+        return b.roundNumber - a.roundNumber;
+      }
+      return new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime();
+    });
 
   const getStatusBadge = (status: Gathering['status']) => {
     switch (status) {
@@ -190,32 +198,34 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         )}
 
-        {/* 3. 탭 네비게이션 */}
-        <div className="flex border-b border-slate-800 bg-slate-900/70 px-3 shrink-0">
-          <button
-            onClick={() => setActiveTab('gatherings')}
-            className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 ${
-              activeTab === 'gatherings'
-                ? 'border-ocean-500 text-ocean-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Sparkles className="w-3.5 h-3.5" /> 모임 ({gatherings.filter((g) => !g.isDeleted).length})
-          </button>
-          <button
-            onClick={() => setActiveTab('tools')}
-            className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 ${
-              activeTab === 'tools'
-                ? 'border-ocean-500 text-ocean-300'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Settings className="w-3.5 h-3.5" /> 관리 & 설정
-          </button>
-        </div>
+        {/* 3. 탭 네비게이션 (오직 관리자 모드에서만 관리 & 설정 탭 노출) */}
+        {isAdmin && (
+          <div className="flex border-b border-slate-800 bg-slate-900/70 px-3 shrink-0">
+            <button
+              onClick={() => setActiveTab('gatherings')}
+              className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 ${
+                effectiveTab === 'gatherings'
+                  ? 'border-ocean-500 text-ocean-300'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" /> 모임 ({gatherings.filter((g) => !g.isDeleted).length})
+            </button>
+            <button
+              onClick={() => setActiveTab('tools')}
+              className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition flex items-center justify-center gap-1.5 ${
+                effectiveTab === 'tools'
+                  ? 'border-ocean-500 text-ocean-300'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Settings className="w-3.5 h-3.5" /> 관리 &amp; 설정
+            </button>
+          </div>
+        )}
 
         {/* 4. 검색창 (모임 탭일 때) */}
-        {activeTab === 'gatherings' && (
+        {effectiveTab === 'gatherings' && (
           <div className="p-3 border-b border-slate-800/80 bg-slate-950/40 shrink-0">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -242,7 +252,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
           
           {/* TAB 1: 모임 목록 */}
-          {activeTab === 'gatherings' && (
+          {effectiveTab === 'gatherings' && (
             <div className="space-y-2.5">
               {/* 상태 필터 칩 */}
               <div className="flex gap-1 overflow-x-auto pb-1 custom-scrollbar text-[11px]">
@@ -337,8 +347,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* TAB 2: 관리 도구 */}
-          {activeTab === 'tools' && (
+          {/* TAB 2: 관리 도구 (관리자 모드일 때만 활성화) */}
+          {effectiveTab === 'tools' && (
             <div className="space-y-3 p-1">
 
               {/* 지정주소(집결지) 관리 바로가기 */}

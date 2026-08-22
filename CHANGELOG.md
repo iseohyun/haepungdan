@@ -5,6 +5,44 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.31] - 2026-08-22
+
+### Added & Improved
+- **Added Photo Widget Toggle Button in TopBar (`TopBar.tsx`, `App.tsx`)**:
+  - Placed photo toggle icon (`ImageIcon`) immediately next to the calendar button in the vertical TopBar menu.
+
+## [0.5.30] - 2026-08-22
+
+### Added & Improved
+- **Admin-Only Management Tab & Reverse Chronological Gathering Sort (`Sidebar.tsx`)**:
+  - Restriced 'Management & Settings' tab in the sidebar strictly to administrators (`isAdmin === true`).
+  - Sorted gatherings list in reverse chronological order (latest rounds and dates first) so the newest meeting appears at the top.
+
+## [0.5.29] - 2026-08-22
+
+### Added & Improved
+- **Pre-fixed Tooltip Border Size and Left-to-Right Typewriter (`MapViewer.tsx`)**:
+  - Pre-fixed the tooltip container border to the full target text size using an invisible ghost layout spacer.
+  - Pinned title text origin to the left to produce a natural left-to-right typewriter effect without jitter.
+
+## [0.5.28] - 2026-08-22
+
+### Added & Improved
+- **Strictly Fixed Marker Title Label Font Size to 1.5em (`MapViewer.tsx`)**:
+  - Set fixed inline font size `style={{ fontSize: '1.5em' }}` for the active marker typewriter title tooltip across all screen sizes.
+
+## [0.5.27] - 2026-08-22
+
+### Added & Improved
+- **Mobile Photo Size Downscaled 2 Levels & Lifted 10px Up (`App.tsx`)**:
+  - Adjusted mobile photo widget width/height to `w-48 h-48` (downscaled 2 levels) and raised bottom offset to `bottom-[58px] sm:bottom-14` (+10px).
+
+## [0.5.26] - 2026-08-22
+
+### Added & Improved
+- **Pause All Animations During Photo Lightbox View (`App.tsx`, `CalendarWidget.tsx`)**:
+  - Automatically paused calendar auto-cycle sequence, multi-photo slide rotation, and 3D wave drift whenever the full-screen photo lightbox is opened.
+
 ## [0.5.25] - 2026-08-22
 
 ### Added & Improved
