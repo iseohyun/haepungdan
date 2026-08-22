@@ -5,6 +5,136 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.25] - 2026-08-22
+
+### Added & Improved
+- **Synced Base URL for Public Fallback Asset (`App.tsx`)**:
+  - Bound fallback image path with `import.meta.env.BASE_URL` to ensure `public/Haepungdan-drive.png` loads seamlessly in all environments.
+
+## [0.5.24] - 2026-08-22
+
+### Added & Improved
+- **Restored Bottom-Left Fixed Positioning for Photo Widget (`MapViewer.tsx`)**:
+  - Restored fixed bottom-left coordinates (`bottom-12 sm:bottom-14 left-3 md:left-4`) for the floating photo widget.
+
+## [0.5.23] - 2026-08-22
+
+### Added & Improved
+- **Strict Layer Hierarchy Alignment (Map < Photo < Marker Title Label) (`MapViewer.tsx`, `App.tsx`)**:
+  - Structured z-indices so that: Base Map Image (z-0) < Photo Card Widget (z-20) < Marker & Typewriter Title Tooltip (z-50/z-9999).
+
+## [0.5.22] - 2026-08-22
+
+### Added & Improved
+- **Extended CalendarWidget Right Offset (`CalendarWidget.tsx`)**:
+  - Adjusted left offset to `left-[68px] md:left-[78px]` to ensure clearly visible rightward spacing from the TopBar.
+
+## [0.5.21] - 2026-08-22
+
+### Added & Improved
+- **Embedded Photo Widget into MapViewer Overlay Layer (`MapViewer.tsx`, `App.tsx`)**:
+  - Restored photo widget visibility by embedding it within MapViewer's container as a z-10 floating overlay.
+  - Guarantees marker title labels (z-20/z-9999) render perfectly in front of photo cards without any z-index clipping.
+
+## [0.5.20] - 2026-08-22
+
+### Added & Improved
+- **Elevated Marker Title Z-Index Above Photo Widget (`App.tsx`)**:
+  - Promoted `<main>` map container to `z-20` and set photo widget to `z-10` to guarantee marker title labels always render in front of photo cards when overlapping.
+
+## [0.5.19] - 2026-08-22
+
+### Added & Improved
+- **Shifted CalendarWidget 5px to the Right (`CalendarWidget.tsx`)**:
+  - Adjusted left offset to `left-[61px] sm:left-[69px]` (+5px) for improved spacing with the vertical top bar.
+
+## [0.5.18] - 2026-08-22
+
+### Added & Improved
+- **Highest Z-Index for Marker Title Tooltip (`MapViewer.tsx`)**:
+  - Assigned `z-[999]` to selected marker container and `z-[9999]` to typewriter title tooltip to ensure absolute top-level visibility over all other map layers and markers.
+
+## [0.5.17] - 2026-08-22
+
+### Added & Improved
+- **Resolved Auto Sequence Cycling Freeze Bug (`CalendarWidget.tsx`)**:
+  - Fixed coordinate percent conversion (`gpsToPercent`) and eliminated stale closure in `handleNextMeeting` using refs.
+  - Ensures seamless infinite automatic cycling across all gatherings (Lightning -> 1st -> 2nd -> ... -> 10th -> Lightning).
+
+## [0.5.16] - 2026-08-22
+
+### Added & Improved
+- **3D Perspective Edge Tilt Physics (rotateX, rotateY, rotateZ) (`App.tsx`)**:
+  - Incorporated 3D perspective with dynamic `rotateX` (top/bottom edge lift ±6°), `rotateY` (left/right edge lift ±6°), and `rotateZ` (planar tilt ±5°) for authentic 3D wave floating realism.
+
+## [0.5.15] - 2026-08-22
+
+### Added & Improved
+- **Resolved CSS Transform Override on Photo Widget Motion (`app.css`, `App.tsx`)**:
+  - Removed transform override in `photoBlurIn` keyframes and separated the positioning container from the dynamic wave motion container.
+- **Enhanced Continuous Drifting Wave Physics (`App.tsx`)**:
+  - Added directional drift physics across 1-2s randomized intervals with boundary bounce and live console logging.
+
+## [0.5.14] - 2026-08-22
+
+### Added & Improved
+- **Dynamic Wave Physics Loop with Realtime Console Logs (`App.tsx`)**:
+  - Implemented dynamic JS timer loop transitioning rotation (±5°) and translation (±10px) over randomized 1-2s intervals with live console logs.
+- **Robust Fallback Image Guarantee (`App.tsx`)**:
+  - Ensured `/Haepungdan-drive.png` placeholder reliably loads for photo-less gatherings.
+- **Doubled Marker Title Size, Fixed Center Alignment & Scale Invariance (`MapViewer.tsx`)**:
+  - Doubled typewriter label font size (`text-4xl font-black` ~36px) and resolved nested scale and offset issues for perfect marker pin centering and scale invariance.
+
+## [0.5.13] - 2026-08-22
+
+### Added & Improved
+- **Enlarged Photo Scales by 2 Steps with Reset Button (`App.tsx`, `MapViewer.tsx`)**:
+  - Elevated default photo size by 2 steps (`w-72 sm:w-96` / 288px~384px) and added extra steps up to `w-[480px] sm:w-[680px]` (480px/680px).
+  - Added photo size reset button (`RotateCcw`) to the remote control.
+- **Enhanced Realistic Wave Float Keyframes (`app.css`)**:
+  - Combined ±5° rotation (2s cycle) and ±10px translation (2.5s cycle) for realistic wave physics.
+- **Icon-Only Waves Button & Fallback Placeholder Image (`MapViewer.tsx`, `App.tsx`)**:
+  - Removed text and rendered clean icon-only `Waves` toggle in remote control.
+  - Automatically loads `/Haepungdan-drive.png` when a gathering has no uploaded photos.
+- **Doubled Marker Title Font Size with Scale Invariance (`MapViewer.tsx`)**:
+  - Enlarged typewriter marker title font size by 2x (`text-2xl font-black`) while keeping its screen scale fixed regardless of map zoom.
+
+## [0.5.12] - 2026-08-22
+
+### Added & Improved
+- **Photo Blur Fade-in/Fade-out & Wave Floating Animation (`app.css`, `App.tsx`)**:
+  - Implemented blur-to-sharp entrance transition (`blur(12px)` -> `blur(0px)`) and fade-to-blur dismissal.
+  - Added wave-like floating card animation (`animate-wave-float`) with a toggle switch on the remote control.
+- **Auto-Cycling Multi-Photo Slideshow (`App.tsx`)**:
+  - Automatically alternates between primary cover photos every 3.5s with smooth crossfade transitions.
+- **Typewriter Title Tooltip Over Selected Map Marker (`MapViewer.tsx`)**:
+  - Added a typewriter-animated floating tooltip right above the currently selected gathering marker pin.
+
+## [0.5.11] - 2026-08-22
+
+### Added & Improved
+- **Elevated Default Photo Size & Added Extra-Large Zoom Modes (`App.tsx`, `MapViewer.tsx`)**:
+  - Set the previous maximum photo widget scale (`w-48 sm:w-64` / 192~256px) as the new default size.
+  - Expanded scaling steps up to `w-96 sm:w-[520px]` (384~520px) allowing users to enlarge preview photos much larger via the remote control.
+
+## [0.5.10] - 2026-08-22
+
+### Added & Improved
+- **Permanently Calibrated Map Bounds (`coordinates.ts`)**:
+  - Applied precise administrator calibration measurements (ΔX = +8.00px [+1.1412%], ΔY = +9.00px [+1.0976%]) directly to `GEOJE_BOUNDS`.
+  - Updated bounds: `LNG_MIN = 128.388853, LNG_MAX = 128.747338, LAT_MAX = 35.061810, LAT_MIN = 34.684808`.
+  - All gathering location pins are now perfectly aligned with actual coastal topography.
+
+## [0.5.9] - 2026-08-22
+
+### Added & Improved
+- **Vertical Left-Aligned TopBar & Inline Calendar Widget Placement (`TopBar.tsx`, `CalendarWidget.tsx`)**:
+  - Reorganized TopBar into a sleek vertical panel placed at the top-left corner (`top-3 left-3`).
+  - Aligned CalendarWidget directly to the right of the vertical TopBar for a compact, unified header experience.
+- **Two-Column Remote Control with Photo Resize Buttons (`MapViewer.tsx`, `App.tsx`)**:
+  - Restructured map remote control into a 2-column grid (`grid-cols-2`).
+  - Added photo enlarge (`ImagePlus`) and photo shrink (`ImageMinus`) buttons separated by `<hr>` dividers between map reset and calibration lock.
+
 ## [0.5.8] - 2026-08-22
 
 ### Added & Improved

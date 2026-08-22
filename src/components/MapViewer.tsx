@@ -10,6 +10,9 @@ import {
   Crosshair,
   Lock,
   Unlock,
+  ImagePlus,
+  ImageMinus,
+  Waves,
 } from 'lucide-react';
 import { gpsToPercent } from '../utils/coordinates';
 
@@ -24,6 +27,12 @@ interface MapViewerProps {
   onSelectGathering: (gathering: Gathering) => void;
   isControlsOpen?: boolean;
   isGisOverlayOpen?: boolean;
+  onIncreasePhotoSize?: () => void;
+  onDecreasePhotoSize?: () => void;
+  onResetPhotoSize?: () => void;
+  isPhotoWaveAnimated?: boolean;
+  onTogglePhotoWaveAnimation?: () => void;
+  photoWidget?: React.ReactNode;
 }
 
 export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
@@ -32,6 +41,12 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
   onSelectGathering,
   isControlsOpen = true,
   isGisOverlayOpen = true,
+  onIncreasePhotoSize,
+  onDecreasePhotoSize,
+  onResetPhotoSize,
+  isPhotoWaveAnimated = true,
+  onTogglePhotoWaveAnimation,
+  photoWidget,
 }, ref) => {
   const { isAdmin } = useAuth();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -325,6 +340,38 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
   };
 
   const activeGatherings = gatherings.filter((g) => !g.isDeleted);
+  const selectedGathering = activeGatherings.find((g) => g.id === selectedGatheringId);
+
+  // ── 선택된 모임 변경 시 마커 위 타이핑 애니메이션 ──
+  const [displayedTitle, setDisplayedTitle] = useState('');
+  const [isTypingComplete, setIsTypingComplete] = useState(false);
+
+  useEffect(() => {
+    if (!selectedGathering) {
+      setDisplayedTitle('');
+      setIsTypingComplete(false);
+      return;
+    }
+
+    const targetTitle = selectedGathering.roundNumber !== undefined
+      ? (selectedGathering.roundNumber === 0 ? `[번개] ${selectedGathering.locationName}` : `[제${selectedGathering.roundNumber}차] ${selectedGathering.locationName}`)
+      : (selectedGathering.title || selectedGathering.locationName);
+
+    setDisplayedTitle('');
+    setIsTypingComplete(false);
+
+    let currentIdx = 0;
+    const timer = setInterval(() => {
+      currentIdx++;
+      setDisplayedTitle(targetTitle.slice(0, currentIdx));
+      if (currentIdx >= targetTitle.length) {
+        clearInterval(timer);
+        setIsTypingComplete(true);
+      }
+    }, 35);
+
+    return () => clearInterval(timer);
+  }, [selectedGatheringId]);
 
   // ── 마커 그룹화 ──────────────────────────────────────────────
   // 위치가 가까운 마커들을 하나의 그룹으로 합침 (1.5% 이내 = 동일 위치)
@@ -373,6 +420,9 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
       onMouseMove={handleMouseMove}
       onMouseLeave={() => setCursorGps(null)}
     >
+      {/* 좌하단 플로팅 포토 위젯 (화면 좌하단 absolute bottom-12 left-3 md:left-4, z-20) */}
+      {photoWidget}
+
       {/* Panzoom 대상 컨테이너 (고정 크기 701x820) */}
       <div
         ref={mapElementRef}
@@ -401,11 +451,11 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
         }`}
         style={{ width: '701px', height: '820px', touchAction: 'none' }}
       >
-        {/* 거제도 클린 지도 이미지 */}
+        {/* 거제도 클린 지도 이미지 (z-0: 가장 작음) */}
         <img
           src={`${import.meta.env.BASE_URL}map.jpg`}
           alt="거제도 지도"
-          className="w-full h-full object-fill pointer-events-none rounded-2xl shadow-inner"
+          className="relative z-0 w-full h-full object-fill pointer-events-none rounded-2xl shadow-inner"
           draggable={false}
         />
 
@@ -455,12 +505,14 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                   transform: `translate(-50%, -50%) scale(${unscaleFactor})`,
                   transformOrigin: 'center center',
                 }}
-                className="cursor-pointer z-10 group p-2 -m-2"
+                className={`cursor-pointer group flex items-center justify-center pointer-events-auto ${
+                  isSelected ? 'z-50' : 'z-5'
+                }`}
                 title={group.gatherings.map((g) => `${g.roundNumber !== undefined ? (g.roundNumber === 0 ? '[번개]' : `[${g.roundNumber}차]`) : ''} ${g.title}`).join('\n')}
               >
                 {/* 모집 중 펄스 링 */}
                 {isRecruiting && (
-                  <div className="absolute inset-0 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />
+                  <div className="absolute inset-0 -m-1.5 rounded-full bg-emerald-400/40 animate-ping pointer-events-none" />
                 )}
 
                 {/* 원형 점 마커 핀 */}
@@ -473,46 +525,110 @@ export const MapViewer = forwardRef<MapViewerRef, MapViewerProps>(({
                       : 'w-3 h-3 bg-red-500/90 shadow-red-500/40 hover:bg-red-400 hover:scale-125'
                   }`}
                 />
+
+                {/* [선택된 마커] 타이핑 애니메이션 모임명 말풍선 툴팁 (최상위 z-index z-[9999]: 사진 카드 z-20보다 위) */}
+                {isSelected && selectedGathering && displayedTitle && (
+                  <div
+                    className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3.5 z-[9999] pointer-events-none whitespace-nowrap animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center"
+                  >
+                    <div className="glass-panel px-5 py-2.5 rounded-2xl border-2 border-ocean-400/90 bg-slate-900/95 text-white shadow-2xl flex items-center gap-3 backdrop-blur-lg">
+                      <span className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
+                      <span className="text-2xl sm:text-4xl font-black text-cyan-300 tracking-wide drop-shadow-lg leading-none">
+                        {displayedTitle}
+                      </span>
+                      {!isTypingComplete && (
+                        <span className="w-2.5 h-7 bg-cyan-400 animate-pulse ml-0.5 rounded-sm" />
+                      )}
+                    </div>
+                    {/* 아래쪽 꼬리표 삼각형 (마커 중심 상단) */}
+                    <div className="w-0 h-0 border-x-8 border-x-transparent border-t-8 border-t-ocean-400/90 -mt-px" />
+                  </div>
+                )}
               </div>
             </React.Fragment>
           );
         })}
       </div>
 
-      {/* 우측 상단 플로팅 컨트롤 (지도 줌 & 리셋 & 관리자 자물쇠) */}
+      {/* 우측 상단 플로팅 리모콘 (2열 종대: 지도 줌/초기화 -> hr -> 사진 크게/작게/리셋/물결 -> hr -> 자물쇠) */}
       {isControlsOpen && (
-        <div className="absolute top-4 right-3 md:right-4 z-20 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200">
-          <div className="glass-panel rounded-2xl p-1 flex flex-col shadow-xl">
-            {/* 1. 지도 줌 & 리셋 */}
+        <div className="absolute top-3 right-3 md:right-4 z-20 flex flex-col gap-2 animate-in fade-in zoom-in-95 duration-200 select-none">
+          <div className="glass-panel rounded-2xl p-1.5 grid grid-cols-2 gap-1 shadow-2xl backdrop-blur-md">
+            {/* 1. 지도 확대 (+) & 지도 축소 (-) */}
             <button
               onClick={() => panzoomInstanceRef.current?.zoomIn()}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition flex items-center justify-center"
               title="지도 확대 (+)"
             >
               <ZoomIn className="w-4 h-4" />
             </button>
             <button
               onClick={() => panzoomInstanceRef.current?.zoomOut()}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition"
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition flex items-center justify-center"
               title="지도 축소 (-)"
             >
               <ZoomOut className="w-4 h-4" />
             </button>
+
+            {/* 2. 지도 초기화 (⟲) */}
             <button
               onClick={resetToFit}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition"
-              title="전체 지도 보기 (세로 밀착)"
+              className="col-span-2 p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition flex items-center justify-center"
+              title="전체 지도 보기 (초기화)"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
 
-            {/* 2. 관리자 전용: 자물쇠 (마커 보정 모드) */}
+            {/* 구분선 (지도 초기화 다음 hr) */}
+            <div className="col-span-2 h-px bg-slate-600/80 my-0.5 mx-0.5" />
+
+            {/* 3. 사진 조절 그룹 (2x2 종대: 크게/작게, 초기화/물결) */}
+            <button
+              onClick={onIncreasePhotoSize}
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition flex items-center justify-center"
+              title="사진 크게 (+)"
+            >
+              <ImagePlus className="w-4 h-4 text-sky-400" />
+            </button>
+            <button
+              onClick={onDecreasePhotoSize}
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition flex items-center justify-center"
+              title="사진 작게 (-)"
+            >
+              <ImageMinus className="w-4 h-4 text-sky-400" />
+            </button>
+
+            {/* 사진 크기 초기화 & 물결 흔들림 애니메이션 (아이콘만 출력) */}
+            <button
+              onClick={onResetPhotoSize}
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl transition flex items-center justify-center"
+              title="사진 크기 초기화 (기본값 리셋)"
+            >
+              <RotateCcw className="w-4 h-4 text-slate-400" />
+            </button>
+            {onTogglePhotoWaveAnimation && (
+              <button
+                onClick={onTogglePhotoWaveAnimation}
+                className={`p-2 rounded-xl transition flex items-center justify-center ${
+                  isPhotoWaveAnimated
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+                title={`물결 카드 애니메이션 ${isPhotoWaveAnimated ? '끄기' : '켜기'}`}
+              >
+                <Waves className={`w-4 h-4 ${isPhotoWaveAnimated ? 'text-cyan-400 animate-pulse' : ''}`} />
+              </button>
+            )}
+
+            {/* 구분선 (잠금 아이콘 전 hr) */}
             {isAdmin && (
               <>
-                <div className="h-px bg-slate-600/80 my-1.5 mx-1" />
+                <div className="col-span-2 h-px bg-slate-600/80 my-0.5 mx-0.5" />
+
+                {/* 4. 관리자 전용: 잠금/해제 (마커 보정 모드) */}
                 <button
                   onClick={handleToggleCalibrationLock}
-                  className={`p-2 rounded-xl transition ${
+                  className={`col-span-2 p-2 rounded-xl transition flex items-center justify-center ${
                     isCalibrationUnlocked
                       ? 'bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-md animate-pulse'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800'

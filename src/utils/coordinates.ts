@@ -4,15 +4,15 @@ import { LocationPosition } from '../types';
  * [거제도 정적 지도 기반 POI 오버레이 시스템 명세서]
  * Geographic Extent (EPSG:4326 / WGS84)
  *
- * 2026-08-21 관리자 모드 정밀 실측 보정 (ΔX = -6.00px [-0.8559%], ΔY = +8.00px [+0.9756%]):
- *   LNG: LNG_MIN = 128.392944, LNG_MAX = 128.751429
- *   LAT: LAT_MAX = 35.057672, LAT_MIN = 34.680670
+ * 2026-08-22 관리자 모드 정밀 실측 보정 (ΔX = +8.00px [+1.1412%], ΔY = +9.00px [+1.0976%]):
+ *   LNG: LNG_MIN = 128.388853, LNG_MAX = 128.747338
+ *   LAT: LAT_MAX = 35.061810, LAT_MIN = 34.684808
  */
 export const GEOJE_BOUNDS = {
-  LAT_MAX: 35.057672, // 북위 (정밀 보정)
-  LAT_MIN: 34.680670, // 남위 (정밀 보정)
-  LNG_MIN: 128.392944, // 서경 (정밀 보정)
-  LNG_MAX: 128.751429, // 동경 (정밀 보정)
+  LAT_MAX: 35.061810, // 북위 (정밀 보정)
+  LAT_MIN: 34.684808, // 남위 (정밀 보정)
+  LNG_MIN: 128.388853, // 서경 (정밀 보정)
+  LNG_MAX: 128.747338, // 동경 (정밀 보정)
   ASPECT_RATIO: 701 / 820,
 } as const;
 
@@ -36,8 +36,8 @@ export function gpsToPercent(lat: number, lng: number): { x_pct: number; y_pct: 
 
 /**
  * CSS 백분율 위치 (x_pct, y_pct) -> GPS (Lat, Lng)
- * Lng = 128.400 + (x_pct / 100) * (128.755 - 128.400)
- * Lat = 35.045 - (y_pct / 100) * (35.045 - 34.665)
+ * Lng = 128.388853 + (x_pct / 100) * (128.747338 - 128.388853)
+ * Lat = 35.061810 - (y_pct / 100) * (35.061810 - 34.684808)
  */
 export function percentToGps(x_pct: number, y_pct: number): { lat: number; lng: number } {
   const lngSpan = GEOJE_BOUNDS.LNG_MAX - GEOJE_BOUNDS.LNG_MIN;

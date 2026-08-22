@@ -355,3 +355,55 @@ html.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
 .sidebar-drawer {
   transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
 }
+
+/* 7. 물결에 흔들리는 사진 카드 부유 애니메이션 (회전: 약 ±5도/2s 주기, 이동: 약 ±10px/2.5s 주기) */
+@keyframes waveFloat {
+  0% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+  12.5% {
+    transform: translate(7px, -9px) rotate(4.8deg);
+  }
+  25% {
+    transform: translate(-6px, 8px) rotate(-5.0deg);
+  }
+  37.5% {
+    transform: translate(9px, 6px) rotate(3.6deg);
+  }
+  50% {
+    transform: translate(-10px, -7px) rotate(-4.6deg);
+  }
+  62.5% {
+    transform: translate(6px, 9px) rotate(4.9deg);
+  }
+  75% {
+    transform: translate(-8px, -6px) rotate(-3.4deg);
+  }
+  87.5% {
+    transform: translate(8px, -8px) rotate(4.3deg);
+  }
+  100% {
+    transform: translate(0px, 0px) rotate(0deg);
+  }
+}
+
+.animate-wave-float {
+  animation: waveFloat 5s ease-in-out infinite;
+}
+
+/* 8. 사진 등장(흐림->선명) 및 퇴장(선명->흐림) 블러 트랜지션 */
+@keyframes photoBlurIn {
+  0% {
+    opacity: 0;
+    filter: blur(12px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px);
+  }
+}
+
+.animate-photo-blur-in {
+  animation: photoBlurIn 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+

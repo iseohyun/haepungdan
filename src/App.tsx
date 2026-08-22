@@ -67,6 +67,125 @@ export const App: React.FC = () => {
   const [isLocationPresetsModalOpen, setIsLocationPresetsModalOpen] = useState(false);
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false);
   const [isPhotoWidgetDismissed, setIsPhotoWidgetDismissed] = useState(false);
+  const [isPhotoWidgetDismissing, setIsPhotoWidgetDismissing] = useState(false);
+
+  // ── 4. 물결 흔들림 동적 3D 애니메이션 (1~2초 랜덤 주기, 상하좌우 3D 들림, ±5도 회전, 지속 유영) ──
+  const [isPhotoWaveAnimated, setIsPhotoWaveAnimated] = useState(true);
+  const [waveStyle, setWaveStyle] = useState<{
+    dx: number;
+    dy: number;
+    rotZ: number;
+    rotX: number; // 상/하 모서리 들림 (rotateX)
+    rotY: number; // 좌/우 모서리 들림 (rotateY)
+    duration: number;
+  }>({
+    dx: 0,
+    dy: 0,
+    rotZ: 0,
+    rotX: 0,
+    rotY: 0,
+    duration: 1500,
+  });
+
+  const handleTogglePhotoWaveAnimation = () => setIsPhotoWaveAnimated((prev) => !prev);
+
+  // 애니메이션 드리프트 상태 (좌우 방향: 1 또는 -1)
+  const waveDriftRef = useRef<{ curX: number; curY: number; dirX: number; dirY: number }>({
+    curX: 0,
+    curY: 0,
+    dirX: 1,
+    dirY: 1,
+  });
+
+  useEffect(() => {
+    if (!isPhotoWaveAnimated) {
+      waveDriftRef.current = { curX: 0, curY: 0, dirX: 1, dirY: 1 };
+      setWaveStyle({ dx: 0, dy: 0, rotZ: 0, rotX: 0, rotY: 0, duration: 300 });
+      return;
+    }
+
+    let isMounted = true;
+    let timerId: NodeJS.Timeout;
+
+    const runWaveStep = () => {
+      // 랜덤 주기: 1000ms ~ 2000ms (1.0s ~ 2.0s)
+      const interval = Math.floor(Math.random() * 1000 + 1000);
+
+      // 한쪽 방향으로 지속 유영 (바운더리: X ±20px, Y ±12px)
+      const state = waveDriftRef.current;
+      const stepX = (Math.random() * 4 + 2) * state.dirX; // 2~6px 씩 전진
+      const stepY = (Math.random() * 4 + 2) * state.dirY;
+
+      state.curX += stepX;
+      state.curY += stepY;
+
+      // X축 바운더리 도달 시 방향 반전
+      if (state.curX > 18) {
+        state.curX = 18;
+        state.dirX = -1;
+      } else if (state.curX < -18) {
+        state.curX = -18;
+        state.dirX = 1;
+      }
+
+      // Y축 바운더리 도달 시 방향 반전
+      if (state.curY > 12) {
+        state.curY = 12;
+        state.dirY = -1;
+      } else if (state.curY < -12) {
+        state.curY = -12;
+        state.dirY = 1;
+      }
+
+      // 상/하 모서리 3D 들림 (rotateX: 약 ±6도)
+      const nextRotX = Number((Math.random() * 12 - 6).toFixed(2));
+      // 좌/우 모서리 3D 들림 (rotateY: 약 ±6도)
+      const nextRotY = Number((Math.random() * 12 - 6).toFixed(2));
+      // 평면 시계/반시계 회전 (rotateZ: 약 ±5도)
+      const nextRotZ = Number(((Math.random() * 10 - 5) * (state.dirX)).toFixed(2));
+      const nextDx = Number(state.curX.toFixed(2));
+      const nextDy = Number(state.curY.toFixed(2));
+
+      console.log(
+        `🌊 [해풍단 3D 물결 파도] 주기: ${interval}ms | 3D들림(상하: ${nextRotX > 0 ? '+' : ''}${nextRotX}°, 좌우: ${nextRotY > 0 ? '+' : ''}${nextRotY}°) | 회전: ${nextRotZ > 0 ? '+' : ''}${nextRotZ}° | 이동: (${nextDx > 0 ? '+' : ''}${nextDx}px, ${nextDy > 0 ? '+' : ''}${nextDy}px)`
+      );
+
+      if (isMounted) {
+        setWaveStyle({
+          dx: nextDx,
+          dy: nextDy,
+          rotZ: nextRotZ,
+          rotX: nextRotX,
+          rotY: nextRotY,
+          duration: interval,
+        });
+        timerId = setTimeout(runWaveStep, interval);
+      }
+    };
+
+    runWaveStep();
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timerId);
+    };
+  }, [isPhotoWaveAnimated]);
+
+  // 좌하단 사진 위젯 크기 조절 (0: 최소 ~ 7: 최대, 기본: 3 [2단계 상향])
+  const [photoSizeLevel, setPhotoSizeLevel] = useState<number>(3);
+
+  const handleIncreasePhotoSize = () => setPhotoSizeLevel((prev) => Math.min(prev + 1, 7));
+  const handleDecreasePhotoSize = () => setPhotoSizeLevel((prev) => Math.max(prev - 1, 0));
+  const handleResetPhotoSize = () => setPhotoSizeLevel(3);
+
+  // 사진 퇴장(흐리게) 핸들러
+  const handleDismissPhotoWidget = () => {
+    setIsPhotoWidgetDismissing(true);
+    setTimeout(() => {
+      setIsPhotoWidgetDismissed(true);
+      setIsPhotoWidgetDismissing(false);
+    }, 400);
+  };
 
   const hasInitializedRef = useRef(false);
 
@@ -110,10 +229,38 @@ export const App: React.FC = () => {
     return Array.from(new Set(photos));
   }, [selectedGathering, allReviews]);
 
+  const validPhotos = useMemo(() => {
+    return selectedGatheringPhotos.filter((p) => typeof p === 'string' && p.trim() !== '');
+  }, [selectedGatheringPhotos]);
+
+  // 다중 사진 자동 순환 슬라이드 인덱스
+  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+
+  useEffect(() => {
+    setCurrentPhotoIndex(0);
+  }, [selectedGatheringId]);
+
+  useEffect(() => {
+    if (validPhotos.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentPhotoIndex((prev) => (prev + 1) % validPhotos.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, [validPhotos.length]);
+
+  const DEFAULT_FALLBACK_PHOTO = `${import.meta.env.BASE_URL}Haepungdan-drive.png`;
+
+  const currentDisplayPhoto =
+    (validPhotos.length > 0 ? validPhotos[currentPhotoIndex % validPhotos.length] : null) ||
+    (selectedGathering?.thumbnailUrls && selectedGathering.thumbnailUrls.find((u) => u && u.trim() !== '')) ||
+    (selectedGathering?.thumbnailUrl && selectedGathering.thumbnailUrl.trim() !== '' ? selectedGathering.thumbnailUrl : null) ||
+    DEFAULT_FALLBACK_PHOTO;
+
   // 사용자가 모임을 직접 선택/클릭했을 때
   const handleSelectGathering = (gathering: Gathering, openModal: boolean = true) => {
     if (gathering.id !== selectedGatheringId) {
       setIsPhotoWidgetDismissed(false);
+      setIsPhotoWidgetDismissing(false);
     }
     setSelectedGatheringId(gathering.id);
     if (openModal) {
@@ -262,6 +409,97 @@ export const App: React.FC = () => {
           onSelectGathering={handleSelectGathering}
           isControlsOpen={isMapControlsOpen}
           isGisOverlayOpen={isGisOverlayOpen}
+          onIncreasePhotoSize={handleIncreasePhotoSize}
+          onDecreasePhotoSize={handleDecreasePhotoSize}
+          onResetPhotoSize={handleResetPhotoSize}
+          isPhotoWaveAnimated={isPhotoWaveAnimated}
+          onTogglePhotoWaveAnimation={handleTogglePhotoWaveAnimation}
+          photoWidget={
+            selectedGathering && currentDisplayPhoto && !isPhotoWidgetDismissed ? (
+              <div
+                className={`absolute bottom-12 sm:bottom-14 left-3 md:left-4 z-20 select-none ${
+                  isPhotoWidgetDismissing ? 'opacity-0 blur-md scale-95 transition-all duration-400' : 'animate-photo-blur-in'
+                }`}
+              >
+                {/* 물결 유영/흔들림 동적 3D 모션 컨테이너 (상하좌우 3D 들림 및 Z축 회전) */}
+                <div
+                  onClick={() => setIsPhotoLightboxOpen(true)}
+                  style={{
+                    transform: isPhotoWaveAnimated
+                      ? `perspective(800px) translate3d(${waveStyle.dx}px, ${waveStyle.dy}px, 0px) rotateX(${waveStyle.rotX}deg) rotateY(${waveStyle.rotY}deg) rotateZ(${waveStyle.rotZ}deg)`
+                      : 'perspective(800px) translate3d(0px, 0px, 0px) rotateX(0deg) rotateY(0deg) rotateZ(0deg)',
+                    transition: isPhotoWaveAnimated
+                      ? `transform ${waveStyle.duration}ms ease-in-out`
+                      : 'transform 300ms ease-out',
+                    transformStyle: 'preserve-3d',
+                    willChange: 'transform',
+                  }}
+                  className="group cursor-pointer"
+                  title={`${selectedGathering.title} (클릭하여 사진 크게 보기)`}
+                >
+                  <div className="relative rounded-2xl overflow-hidden glass-panel p-1 border border-slate-700/90 shadow-2xl transition-all duration-300 group-hover:border-ocean-500/80 bg-slate-900/85 backdrop-blur-md">
+                    {/* 썸네일 이미지 (리모콘으로 크기 조절 가능) */}
+                    <div
+                      className={`rounded-xl overflow-hidden relative bg-slate-950 transition-all duration-300 ${
+                        [
+                          'w-36 h-36 sm:w-48 sm:h-48',             // Level 0: 최소 크기 (144px / 192px)
+                          'w-48 h-48 sm:w-64 sm:h-64',             // Level 1: 이전 기본 크기 (192px / 256px)
+                          'w-60 h-60 sm:w-80 sm:h-80',             // Level 2: (240px / 320px)
+                          'w-72 h-72 sm:w-96 sm:h-96',             // Level 3: 기본 크기 (288px / 384px - 2단계 확장 기본값)
+                          'w-84 h-84 sm:w-[440px] sm:h-[440px]',   // Level 4: (336px / 440px)
+                          'w-96 h-96 sm:w-[520px] sm:h-[520px]',   // Level 5: (384px / 520px)
+                          'w-[420px] h-[420px] sm:w-[600px] sm:h-[600px]', // Level 6: (420px / 600px)
+                          'w-[480px] h-[480px] sm:w-[680px] sm:h-[680px]', // Level 7: 최대 크기 (480px / 680px)
+                        ][photoSizeLevel] || 'w-72 h-72 sm:w-96 sm:h-96'
+                      }`}
+                    >
+                      <img
+                        key={currentDisplayPhoto}
+                        src={currentDisplayPhoto}
+                        alt={selectedGathering.title}
+                        onError={(e) => {
+                          e.currentTarget.src = DEFAULT_FALLBACK_PHOTO;
+                        }}
+                        className="w-full h-full object-cover transition-all duration-500 animate-photo-blur-in group-hover:scale-110"
+                      />
+                      
+                      {/* 상단 뱃지 (회차) */}
+                      {selectedGathering.roundNumber !== undefined && (
+                        <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-ocean-600/90 text-white text-[10px] font-mono font-bold shadow-md backdrop-blur-sm">
+                          {selectedGathering.roundNumber === 0 ? '번개' : `제${selectedGathering.roundNumber}차`}
+                        </div>
+                      )}
+
+                      {/* 우상단 닫기 (X) 버튼 */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDismissPhotoWidget();
+                        }}
+                        className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/75 hover:bg-rose-600 text-white transition shadow-md z-10"
+                        title="사진 닫기"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+
+                      {/* 하단 그라디언트 + 장소명 및 사진 개수 */}
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2 pt-4 flex items-end justify-between gap-1">
+                        <span className="text-[11px] font-bold text-white leading-tight truncate block drop-shadow-md">
+                          {selectedGathering.locationName}
+                        </span>
+                        {validPhotos.length > 1 && (
+                          <span className="px-1.5 py-0.2 rounded bg-black/70 text-[9px] font-mono font-bold text-slate-300 border border-slate-700/80 shrink-0">
+                            {(currentPhotoIndex % validPhotos.length) + 1}/{validPhotos.length}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null
+          }
         />
       </main>
 
@@ -274,58 +512,6 @@ export const App: React.FC = () => {
         onSelectGathering={handleSelectGathering}
         onFocusCoordinate={handleFocusCoordinate}
       />
-
-      {/* 5. 좌하단 선택된 모임 대표 이미지 플로팅 포토 위젯 */}
-      {selectedGathering && (selectedGathering.thumbnailUrls?.[0] || selectedGathering.thumbnailUrl) && !isPhotoWidgetDismissed && (
-        <div
-          onClick={() => setIsPhotoLightboxOpen(true)}
-          className="absolute bottom-12 sm:bottom-14 left-3 md:left-4 z-20 group cursor-pointer animate-in fade-in slide-from-bottom-4 duration-300 select-none"
-          title={`${selectedGathering.title} (클릭하여 사진 크게 보기)`}
-        >
-          <div className="relative rounded-2xl overflow-hidden glass-panel p-1 border border-slate-700/90 shadow-2xl transition-all duration-300 group-hover:scale-105 group-hover:border-ocean-500/80 bg-slate-900/85 backdrop-blur-md">
-            {/* 썸네일 이미지 */}
-            <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl overflow-hidden relative bg-slate-950">
-              <img
-                src={selectedGathering.thumbnailUrls?.[0] || selectedGathering.thumbnailUrl}
-                alt={selectedGathering.title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-              />
-              
-              {/* 상단 뱃지 (회차) */}
-              {selectedGathering.roundNumber !== undefined && (
-                <div className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded-md bg-ocean-600/90 text-white text-[10px] font-mono font-bold shadow-md backdrop-blur-sm">
-                  {selectedGathering.roundNumber === 0 ? '번개' : `제${selectedGathering.roundNumber}차`}
-                </div>
-              )}
-
-              {/* 우상단 닫기 (X) 버튼 */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsPhotoWidgetDismissed(true);
-                }}
-                className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/75 hover:bg-rose-600 text-white transition shadow-md z-10"
-                title="사진 닫기"
-              >
-                <X className="w-3 h-3" />
-              </button>
-
-              {/* 하단 그라디언트 + 장소명 및 사진 개수 */}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2 pt-4 flex items-end justify-between gap-1">
-                <span className="text-[11px] font-bold text-white leading-tight truncate block drop-shadow-md">
-                  {selectedGathering.locationName}
-                </span>
-                {selectedGatheringPhotos.length > 1 && (
-                  <span className="px-1.5 py-0.2 rounded bg-black/70 text-[9px] font-mono font-bold text-slate-300 border border-slate-700/80 shrink-0">
-                    1/{selectedGatheringPhotos.length}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 6. 사진 크게 보기 (풀스크린 라이트박스 모달) */}
       <PhotoLightboxModal

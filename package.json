@@ -1,7 +1,7 @@
 {
   "name": "haepungdan",
   "private": true,
-  "version": "0.5.8",
+  "version": "0.5.25",
   "type": "module",
 
   "scripts": {

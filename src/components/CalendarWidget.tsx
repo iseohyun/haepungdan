@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Gathering } from '../types';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Minimize2, Maximize2, X, Play, Pause } from 'lucide-react';
+import { gpsToPercent } from '../utils/coordinates';
 
 interface CalendarWidgetProps {
   isOpen: boolean;
@@ -26,7 +27,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
   // 자동 애니메이션 간격 설정 ("1초" -> "2초"(기본) -> "3초" -> "0초" -> "1초")
   const [autoInterval, setAutoInterval] = useState<number>(2); // 2초 기본
 
-  // 활성 모임 정렬 목록 (회차순 오름차순)
+  // 활성 모임 정렬 목록 (회차순 오름차순: 번개(0) -> 1차 -> 2차 -> ... -> 10차)
   const activeGatherings = useMemo(() => {
     return gatherings
       .filter((g) => !g.isDeleted)
@@ -38,16 +39,23 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
       });
   }, [gatherings]);
 
+  // 최신 상태를 ref로 보관하여 stale closure 방지
+  const activeGatheringsRef = useRef(activeGatherings);
+  activeGatheringsRef.current = activeGatherings;
+
+  const selectedGatheringIdRef = useRef(selectedGatheringId);
+  selectedGatheringIdRef.current = selectedGatheringId;
+
+  const onSelectGatheringRef = useRef(onSelectGathering);
+  onSelectGatheringRef.current = onSelectGathering;
+
+  const onFocusCoordinateRef = useRef(onFocusCoordinate);
+  onFocusCoordinateRef.current = onFocusCoordinate;
+
   // 현재 선택된 모임
   const selectedGathering = useMemo(() => {
     return activeGatherings.find((g) => g.id === selectedGatheringId) ?? null;
   }, [activeGatherings, selectedGatheringId]);
-
-  // 현재 선택된 모임의 인덱스
-  const currentIndex = useMemo(() => {
-    if (!selectedGathering) return -1;
-    return activeGatherings.findIndex((g) => g.id === selectedGathering.id);
-  }, [activeGatherings, selectedGathering]);
 
   // 현재 선택된 이벤트의 일자(Day)
   const selectedDay = useMemo(() => {
@@ -71,46 +79,57 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
 
   // 이전 모임으로 이동 (모달 팝업 없이 선택/포커스만 이동)
   const handlePrevMeeting = useCallback(() => {
-    if (activeGatherings.length === 0) return;
-    let targetIndex = currentIndex - 1;
+    const list = activeGatheringsRef.current;
+    if (list.length === 0) return;
+    const curId = selectedGatheringIdRef.current;
+    const curIdx = list.findIndex((g) => g.id === curId);
+    let targetIndex = curIdx - 1;
     if (targetIndex < 0) {
-      targetIndex = activeGatherings.length - 1; // 순환
+      targetIndex = list.length - 1; // 순환
     }
-    const target = activeGatherings[targetIndex];
+    const target = list[targetIndex];
     if (target) {
-      onSelectGathering(target, false);
-      if (onFocusCoordinate) {
-        onFocusCoordinate(target.position.x_pct, target.position.y_pct);
+      onSelectGatheringRef.current(target, false);
+      const pos = gpsToPercent(target.position.lat, target.position.lng);
+      if (onFocusCoordinateRef.current) {
+        onFocusCoordinateRef.current(pos.x_pct, pos.y_pct);
       }
     }
-  }, [activeGatherings, currentIndex, onSelectGathering, onFocusCoordinate]);
+  }, []);
 
   // 다음 모임으로 이동 (모달 팝업 없이 선택/포커스만 이동)
   const handleNextMeeting = useCallback(() => {
-    if (activeGatherings.length === 0) return;
-    let targetIndex = currentIndex + 1;
-    if (targetIndex >= activeGatherings.length) {
+    const list = activeGatheringsRef.current;
+    if (list.length === 0) return;
+    const curId = selectedGatheringIdRef.current;
+    const curIdx = list.findIndex((g) => g.id === curId);
+    let targetIndex = curIdx + 1;
+    if (targetIndex >= list.length || targetIndex < 0) {
       targetIndex = 0; // 순환
     }
-    const target = activeGatherings[targetIndex];
+    const target = list[targetIndex];
     if (target) {
-      onSelectGathering(target, false);
-      if (onFocusCoordinate) {
-        onFocusCoordinate(target.position.x_pct, target.position.y_pct);
+      console.log(
+        `▶ [자동 회차 순환] 이동 -> [${target.roundNumber !== undefined ? (target.roundNumber === 0 ? '번개' : `${target.roundNumber}차`) : '모임'}] ${target.locationName} (${targetIndex + 1}/${list.length})`
+      );
+      onSelectGatheringRef.current(target, false);
+      const pos = gpsToPercent(target.position.lat, target.position.lng);
+      if (onFocusCoordinateRef.current) {
+        onFocusCoordinateRef.current(pos.x_pct, pos.y_pct);
       }
     }
-  }, [activeGatherings, currentIndex, onSelectGathering, onFocusCoordinate]);
+  }, []);
 
   // 자동 회차 넘김 애니메이션 타이머
   useEffect(() => {
-    if (autoInterval === 0 || activeGatherings.length <= 1) return;
+    if (autoInterval <= 0) return;
 
     const timer = setInterval(() => {
       handleNextMeeting();
     }, autoInterval * 1000);
 
     return () => clearInterval(timer);
-  }, [autoInterval, activeGatherings.length, handleNextMeeting]);
+  }, [autoInterval, handleNextMeeting]);
 
   // 자동 넘김 간격 순환 토글: 2초(기본) -> 3초 -> 0초(정지) -> 1초 -> 2초
   const handleCycleInterval = () => {
@@ -147,7 +166,7 @@ export const CalendarWidget: React.FC<CalendarWidgetProps> = ({
     : (activeGatherings.length > 0 ? '•' : '-');
 
   return (
-    <div className="absolute top-16 left-3 md:left-4 z-30 w-72 sm:w-80 glass-panel rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 animate-in fade-in zoom-in-95 select-none">
+    <div className="absolute top-3 left-[68px] md:left-[78px] z-30 w-72 sm:w-80 glass-panel rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 animate-in fade-in zoom-in-95 select-none">
       {/* 헤더 */}
       <div className="px-3 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-1.5">
         <div className="flex items-center gap-1.5 min-w-0 flex-1">
