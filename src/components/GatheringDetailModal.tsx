@@ -100,7 +100,11 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
   const [editDescription, setEditDescription] = useState(gathering.description);
   const [editVideoUrl, setEditVideoUrl] = useState(gathering.videoUrl || '');
   const [editCloudUrl, setEditCloudUrl] = useState(gathering.cloudUrl || '');
-  const [editThumbnailUrl, setEditThumbnailUrl] = useState<string | undefined>(gathering.thumbnailUrl);
+  const [editThumbnailUrls, setEditThumbnailUrls] = useState<string[]>(() => {
+    return gathering.thumbnailUrls && gathering.thumbnailUrls.length > 0
+      ? gathering.thumbnailUrls
+      : (gathering.thumbnailUrl ? [gathering.thumbnailUrl] : []);
+  });
   const [showEditDirectModal, setShowEditDirectModal] = useState(false);
 
   const [isCompressingEditThumb, setIsCompressingEditThumb] = useState(false);
@@ -129,7 +133,10 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
     setEditDescription(gathering.description);
     setEditVideoUrl(gathering.videoUrl || '');
     setEditCloudUrl(gathering.cloudUrl || '');
-    setEditThumbnailUrl(gathering.thumbnailUrl);
+    const currentThumbs = gathering.thumbnailUrls && gathering.thumbnailUrls.length > 0
+      ? gathering.thumbnailUrls
+      : (gathering.thumbnailUrl ? [gathering.thumbnailUrl] : []);
+    setEditThumbnailUrls(currentThumbs);
     setIsEditing(true);
   };
 
@@ -202,20 +209,42 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
     }
   };
 
-  // 수정 모드 썸네일 업로드
+  // 수정 모드 썸네일 업로드 (최대 3장)
   const handleEditThumbnailUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const remainingSlots = 3 - editThumbnailUrls.length;
+    if (remainingSlots <= 0) {
+      alert('대표 이미지는 최대 3장까지 등록 가능합니다.');
+      return;
+    }
+
+    const filesToProcess = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      alert(`최대 3장까지만 등록 가능하여 ${remainingSlots}장만 추가됩니다.`);
+    }
 
     try {
       setIsCompressingEditThumb(true);
-      const result = await compressImageToWebP(file, 1200, 1200, 0.82);
-      setEditThumbnailUrl(result.dataUrl);
-    } catch (err) {
+      const compressedUrls: string[] = [];
+      for (const file of filesToProcess) {
+        const result = await compressImageToWebP(file, 1200, 1200, 0.82);
+        compressedUrls.push(result.dataUrl);
+      }
+      setEditThumbnailUrls((prev) => [...prev, ...compressedUrls]);
+    } catch {
       alert('대표 이미지 압축에 실패했습니다.');
     } finally {
       setIsCompressingEditThumb(false);
+      if (editFileInputRef.current) {
+        editFileInputRef.current.value = '';
+      }
     }
+  };
+
+  const handleRemoveEditThumbnail = (index: number) => {
+    setEditThumbnailUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 수정 저장 제출
@@ -260,11 +289,12 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
           videoUrl: editVideoUrl.trim() || undefined,
           videoUrls: editVideoUrl.trim() ? [editVideoUrl.trim()] : [],
           cloudUrl: editCloudUrl.trim() || undefined,
-          thumbnailUrl: editThumbnailUrl,
+          thumbnailUrl: editThumbnailUrls[0] || undefined,
+          thumbnailUrls: editThumbnailUrls.length > 0 ? editThumbnailUrls : undefined,
         });
       }
       setIsEditing(false);
-    } catch (err) {
+    } catch {
       alert('모임 정보 수정 중 오류가 발생했습니다.');
     } finally {
       setIsSavingEdit(false);
@@ -278,9 +308,17 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
 
   const myRsvp = currentUser ? rsvps.find((r) => r.userId === currentUser.uid) : null;
 
-  // 전체 모임 관련 사진들 모음 (대표 이미지 + 모든 후기 사진)
+  // 모임 대표 이미지 목록 (최대 3개)
+  const gatheringThumbnails = useMemo(() => {
+    if (gathering.thumbnailUrls && gathering.thumbnailUrls.length > 0) {
+      return gathering.thumbnailUrls;
+    }
+    return gathering.thumbnailUrl ? [gathering.thumbnailUrl] : [];
+  }, [gathering.thumbnailUrls, gathering.thumbnailUrl]);
+
+  // 전체 모임 관련 사진들 모음 (대표 이미지들 + 모든 후기 사진)
   const allGatheringPhotos: string[] = [
-    ...(gathering.thumbnailUrl ? [gathering.thumbnailUrl] : []),
+    ...gatheringThumbnails,
     ...reviews.flatMap((r) => r.images || []),
   ];
 
@@ -659,30 +697,56 @@ export const GatheringDetailModal: React.FC<GatheringDetailModalProps> = ({
                   />
                 </div>
 
-                {/* ── 대표 이미지 ── */}
-                <div className="flex items-center gap-3 px-5 py-3.5">
-                  <label className="text-xs font-bold text-slate-400 w-24 shrink-0 flex items-center gap-1.5">
+                {/* ── 대표 이미지 (최대 3장) ── */}
+                <div className="flex items-start gap-3 px-5 py-3.5">
+                  <label className="text-xs font-bold text-slate-400 w-24 shrink-0 pt-1.5 flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5 text-sky-400" />
                     대표 이미지
+                    <span className="text-[10px] text-slate-500 font-normal">({editThumbnailUrls.length}/3)</span>
                   </label>
-                  <div className="flex items-center gap-2.5 flex-1">
-                    <input type="file" ref={editFileInputRef} onChange={handleEditThumbnailUpload} accept="image/*" className="hidden" id="edit-thumbnail-upload" />
-                    <label
-                      htmlFor="edit-thumbnail-upload"
-                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer flex items-center gap-1.5 transition"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-ocean-400" />
-                      <span>이미지 변경</span>
-                    </label>
-                    {isCompressingEditThumb && <span className="text-xs text-ocean-300 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> 변환 중...</span>}
-                    {editThumbnailUrl && (
-                      <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-emerald-500/50 shrink-0">
-                        <img src={editThumbnailUrl} alt="대표 썸네일" className="w-full h-full object-cover" />
-                        <button type="button" onClick={() => setEditThumbnailUrl(undefined)} className="absolute top-0 right-0 p-0.5 bg-black/70 text-white">
-                          <X className="w-2 h-2" />
-                        </button>
+                  <div className="flex flex-wrap items-center gap-2 flex-1">
+                    <input
+                      type="file"
+                      ref={editFileInputRef}
+                      onChange={handleEditThumbnailUpload}
+                      multiple
+                      accept="image/*"
+                      className="hidden"
+                      id="edit-thumbnail-upload"
+                    />
+                    {editThumbnailUrls.length < 3 && (
+                      <label
+                        htmlFor="edit-thumbnail-upload"
+                        className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 cursor-pointer flex items-center gap-1.5 transition"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-ocean-400" />
+                        <span>사진 첨부 ({3 - editThumbnailUrls.length}장 가능)</span>
+                      </label>
+                    )}
+
+                    {isCompressingEditThumb && (
+                      <div className="flex items-center gap-1 text-xs text-ocean-300">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>WebP 변환 중...</span>
                       </div>
                     )}
+
+                    {editThumbnailUrls.map((url, idx) => (
+                      <div key={idx} className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-700 bg-slate-950 shrink-0 group">
+                        <img src={url} alt={`대표 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                        <div className="absolute bottom-0 inset-x-0 bg-black/70 text-[9px] text-center font-bold text-slate-300 py-0.2">
+                          {idx === 0 ? '대표' : `${idx + 1}`}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEditThumbnail(idx)}
+                          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/75 hover:bg-rose-600 text-white transition"
+                          title="삭제"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

@@ -82,7 +82,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [cloudUrl, setCloudUrl] = useState('');
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>();
+  const [thumbnailUrls, setThumbnailUrls] = useState<string[]>([]);
   const [isCompressing, setIsCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -98,7 +98,7 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
       setDescription('');
       setVideoUrl('');
       setCloudUrl('');
-      setThumbnailUrl(undefined);
+      setThumbnailUrls([]);
     }
   }, [isOpen, defaultNextRound]);
 
@@ -152,19 +152,42 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
     setShowDirectInputModal(false);
   };
 
-  // 대표 이미지 업로드 및 WebP 압축
+  // 대표 이미지 업로드 및 WebP 압축 (최대 3장)
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const remainingSlots = 3 - thumbnailUrls.length;
+    if (remainingSlots <= 0) {
+      alert('대표 이미지는 최대 3장까지 등록 가능합니다.');
+      return;
+    }
+
+    const filesToProcess = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      alert(`최대 3장까지만 등록 가능하여 ${remainingSlots}장만 추가됩니다.`);
+    }
+
     try {
       setIsCompressing(true);
-      const result = await compressImageToWebP(file, 1200, 1200, 0.82);
-      setThumbnailUrl(result.dataUrl);
+      const compressedUrls: string[] = [];
+      for (const file of filesToProcess) {
+        const result = await compressImageToWebP(file, 1200, 1200, 0.82);
+        compressedUrls.push(result.dataUrl);
+      }
+      setThumbnailUrls((prev) => [...prev, ...compressedUrls]);
     } catch {
       alert('대표 이미지 압축에 실패했습니다.');
     } finally {
       setIsCompressing(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
+  };
+
+  const handleRemoveThumbnail = (index: number) => {
+    setThumbnailUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 폼 제출
@@ -201,7 +224,8 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
       tmapAddress: tmapAddress.trim() || undefined,
       position: currentPosition,
       description: description.trim() || '모임 상세 내용이 곧 업데이트됩니다.',
-      thumbnailUrl,
+      thumbnailUrl: thumbnailUrls[0] || undefined,
+      thumbnailUrls: thumbnailUrls.length > 0 ? thumbnailUrls : undefined,
       videoUrl: videoUrl.trim() || undefined,
       videoUrls: videoUrl.trim() ? [videoUrl.trim()] : [],
       cloudUrl: cloudUrl.trim() || undefined,
@@ -395,41 +419,56 @@ export const CreateGatheringModal: React.FC<CreateGatheringModalProps> = ({
                 />
               </div>
 
-              {/* ── 8. 대표 이미지 ── */}
-              <div className="flex items-center gap-3 px-5 py-3.5">
-                <label className="text-xs font-bold text-slate-400 w-24 shrink-0 flex items-center gap-1.5">
+              {/* ── 8. 대표 이미지 (최대 3장) ── */}
+              <div className="flex items-start gap-3 px-5 py-3.5">
+                <label className="text-xs font-bold text-slate-400 w-24 shrink-0 pt-1.5 flex items-center gap-1.5">
                   <ImageIcon className="w-3.5 h-3.5 text-sky-400" />
                   대표 이미지
+                  <span className="text-[10px] text-slate-500 font-normal">({thumbnailUrls.length}/3)</span>
                 </label>
-                <div className="flex items-center gap-2.5 flex-1">
-                  <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" id="thumbnail-upload" />
-                  <label
-                    htmlFor="thumbnail-upload"
-                    className="px-3.5 py-1.5 rounded-xl glass-card border border-slate-700 hover:bg-slate-800 text-xs font-semibold text-slate-300 cursor-pointer flex items-center gap-1.5 transition"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-ocean-400" />
-                    <span>이미지 선택</span>
-                  </label>
+                <div className="flex flex-wrap items-center gap-2 flex-1">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    id="thumbnail-upload"
+                  />
+                  {thumbnailUrls.length < 3 && (
+                    <label
+                      htmlFor="thumbnail-upload"
+                      className="px-3 py-1.5 rounded-xl glass-card border border-slate-700 hover:bg-slate-800 text-xs font-semibold text-slate-300 cursor-pointer flex items-center gap-1.5 transition"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-ocean-400" />
+                      <span>사진 첨부 ({3 - thumbnailUrls.length}장 가능)</span>
+                    </label>
+                  )}
 
                   {isCompressing && (
                     <div className="flex items-center gap-1 text-xs text-ocean-300">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>변환 중...</span>
+                      <span>WebP 변환 중...</span>
                     </div>
                   )}
 
-                  {thumbnailUrl && (
-                    <div className="relative w-9 h-9 rounded-lg overflow-hidden border border-emerald-500/50 shrink-0">
-                      <img src={thumbnailUrl} alt="썸네일" className="w-full h-full object-cover" />
+                  {thumbnailUrls.map((url, idx) => (
+                    <div key={idx} className="relative w-12 h-12 rounded-xl overflow-hidden border border-slate-700 bg-slate-950 shrink-0 group">
+                      <img src={url} alt={`대표 이미지 ${idx + 1}`} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-0 inset-x-0 bg-black/70 text-[9px] text-center font-bold text-slate-300 py-0.2">
+                        {idx === 0 ? '대표' : `${idx + 1}`}
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setThumbnailUrl(undefined)}
-                        className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/70 text-white"
+                        onClick={() => handleRemoveThumbnail(idx)}
+                        className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-black/75 hover:bg-rose-600 text-white transition"
+                        title="삭제"
                       >
                         <X className="w-2.5 h-2.5" />
                       </button>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
 

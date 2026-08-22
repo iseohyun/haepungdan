@@ -30,7 +30,8 @@ export interface Gathering {
   description: string;         // 모임 설명 및 계획
   fee?: number;                // 참가비 (원, 0=무료)
   maxParticipants?: number;    // 최대 참가 정원
-  thumbnailUrl?: string;       // 대표 썸네일 이미지 (WebP Data URL)
+  thumbnailUrl?: string;       // 대표 썸네일 이미지 (첫 번째 이미지, 하위 호환용)
+  thumbnailUrls?: string[];      // 대표 이미지 목록 (최대 3개, WebP Data URL)
   videoUrl?: string;           // YouTube 영상 또는 Shorts 링크
   videoUrls?: string[];        // 추가 비디오 링크들
   cloudUrl?: string;           // 클라우드 자료 링크 (Google Drive, Notion 등)

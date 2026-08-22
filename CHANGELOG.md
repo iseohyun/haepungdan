@@ -5,6 +5,16 @@ All notable changes to the Haepungdan project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.8] - 2026-08-22
+
+### Added & Improved
+- **Support Up to 3 Primary Images Per Gathering (`types/index.ts`, `CreateGatheringModal.tsx`, `GatheringDetailModal.tsx`)**:
+  - Added `thumbnailUrls: string[]` (max 3 images) to the `Gathering` data schema with full backward compatibility.
+  - Enabled multi-image WebP upload and preview grid with order badges and deletion controls in creation & edit modals.
+- **Bottom-Left Photo Widget & Fullscreen Lightbox Integration (`App.tsx`, `PhotoLightboxModal.tsx`)**:
+  - Added photo count badge overlay to the bottom-left floating widget.
+  - Linked all 3 primary images directly into the fullscreen lightbox viewer for seamless slider navigation.
+
 ## [0.5.7] - 2026-08-21
 
 ### Added & Improved

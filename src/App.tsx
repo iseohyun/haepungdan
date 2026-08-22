@@ -92,11 +92,15 @@ export const App: React.FC = () => {
   // 현재 선택된 모임 객체
   const selectedGathering = gatherings.find((g) => g.id === selectedGatheringId) ?? null;
 
-  // 선택된 모임의 모든 사진 목록 (대표 썸네일 + 후기 사진들)
+  // 선택된 모임의 모든 사진 목록 (대표 썸네일들 + 후기 사진들)
   const selectedGatheringPhotos = useMemo(() => {
     if (!selectedGathering) return [];
     const photos: string[] = [];
-    if (selectedGathering.thumbnailUrl) photos.push(selectedGathering.thumbnailUrl);
+    if (selectedGathering.thumbnailUrls && selectedGathering.thumbnailUrls.length > 0) {
+      photos.push(...selectedGathering.thumbnailUrls);
+    } else if (selectedGathering.thumbnailUrl) {
+      photos.push(selectedGathering.thumbnailUrl);
+    }
     const relatedReviews = allReviews.filter((r) => r.gatheringId === selectedGathering.id);
     for (const rev of relatedReviews) {
       if (rev.images && rev.images.length > 0) {
@@ -272,17 +276,17 @@ export const App: React.FC = () => {
       />
 
       {/* 5. 좌하단 선택된 모임 대표 이미지 플로팅 포토 위젯 */}
-      {selectedGathering && selectedGathering.thumbnailUrl && !isPhotoWidgetDismissed && (
+      {selectedGathering && (selectedGathering.thumbnailUrls?.[0] || selectedGathering.thumbnailUrl) && !isPhotoWidgetDismissed && (
         <div
           onClick={() => setIsPhotoLightboxOpen(true)}
-          className="absolute bottom-12 sm:bottom-14 left-3 md:left-4 z-20 group cursor-pointer animate-in fade-in slide-in-from-bottom-4 duration-300 select-none"
+          className="absolute bottom-12 sm:bottom-14 left-3 md:left-4 z-20 group cursor-pointer animate-in fade-in slide-from-bottom-4 duration-300 select-none"
           title={`${selectedGathering.title} (클릭하여 사진 크게 보기)`}
         >
           <div className="relative rounded-2xl overflow-hidden glass-panel p-1 border border-slate-700/90 shadow-2xl transition-all duration-300 group-hover:scale-105 group-hover:border-ocean-500/80 bg-slate-900/85 backdrop-blur-md">
             {/* 썸네일 이미지 */}
             <div className="w-28 h-28 sm:w-36 sm:h-36 rounded-xl overflow-hidden relative bg-slate-950">
               <img
-                src={selectedGathering.thumbnailUrl}
+                src={selectedGathering.thumbnailUrls?.[0] || selectedGathering.thumbnailUrl}
                 alt={selectedGathering.title}
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
               />
@@ -307,11 +311,16 @@ export const App: React.FC = () => {
                 <X className="w-3 h-3" />
               </button>
 
-              {/* 하단 그라디언트 + 장소명 */}
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2 pt-4">
+              {/* 하단 그라디언트 + 장소명 및 사진 개수 */}
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2 pt-4 flex items-end justify-between gap-1">
                 <span className="text-[11px] font-bold text-white leading-tight truncate block drop-shadow-md">
                   {selectedGathering.locationName}
                 </span>
+                {selectedGatheringPhotos.length > 1 && (
+                  <span className="px-1.5 py-0.2 rounded bg-black/70 text-[9px] font-mono font-bold text-slate-300 border border-slate-700/80 shrink-0">
+                    1/{selectedGatheringPhotos.length}
+                  </span>
+                )}
               </div>
             </div>
           </div>
